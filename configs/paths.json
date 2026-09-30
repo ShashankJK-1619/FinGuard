@@ -1,0 +1,12 @@
+{
+  "raw_dir": "data/raw",
+  "interim_dir": "data/interim",
+  "processed_dir": "data/processed",
+  "docs_dir": "docs",
+  "raw_files": {
+    "train_transaction": "train_transaction.csv",
+    "train_identity": "train_identity.csv",
+    "test_transaction": "test_transaction.csv",
+    "test_identity": "test_identity.csv"
+  }
+}
