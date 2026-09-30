@@ -64,3 +64,42 @@ Append-only; do not rewrite history, add corrections as new entries.
   train and test identity tables must normalize this naming difference
   first, or test-time feature generation will silently produce all-null
   `id_*` columns.
+
+## 2026-09-30 — Milestone 2: point-in-time feature engineering & baseline dataset
+
+- Built `src/features/` (`schema.py`, `amount_time_features.py`,
+  `identity_features.py`, `categorical_features.py`,
+  `velocity_features.py`, `build_baseline_dataset.py`) and
+  `data/processed/baseline_features_v1.parquet` (train only, 590,540 rows,
+  38 columns). Full reasoning in `docs/milestone2_feature_design.md`;
+  per-feature detail in `docs/feature_dictionary.md`.
+- **Applied the `id_*`/`id-*` normalization found in Milestone 1**:
+  `src/features/schema.py::normalize_identity_columns` fixes the rename.
+  Applied to `train_identity` here even though only train is used this
+  milestone, so the same function is safe to reuse on `test_identity` at
+  scoring time later without a silent all-null bug.
+- **Frequency/recency features use causal expanding-window aggregation**
+  (sort by `TransactionDT`, then `groupby(key).cumcount()` /
+  `.diff()`), not global aggregation, specifically to avoid the classic
+  Kaggle-fraud-competition leakage bug of counting future rows into a
+  "how often have I seen this" feature. This is the highest-leakage-risk
+  part of this milestone and is covered by adversarial tests
+  (`tests/features/test_velocity_features.py`) that mutate a later row and
+  assert earlier rows' feature values don't change.
+- **Excluded `M1`–`M9` and raw `id_01`–`id_38` values**, even though
+  neither was explicitly forbidden the way `C*`/`D*`/`V*` were. Neither was
+  requested in the Milestone 2 feature list, and both carry the same
+  documented-category-but-undocumented-per-column-meaning problem as the
+  explicitly-masked groups. Treated as "not yet in scope," not added just
+  because nothing technically forbade it. Full reasoning in
+  `docs/milestone2_feature_design.md` §6.
+- **Output format: Parquet via DuckDB's native writer** (`COPY ... TO
+  ... (FORMAT PARQUET)`), not `pandas.to_parquet` / CSV. Avoids adding a
+  `pyarrow`/`fastparquet` dependency (project constraint: minimal
+  dependencies) while still getting typed columnar storage; can be read
+  back the same way (`duckdb.sql("SELECT * FROM read_parquet(...)")`).
+- **No train/validation split created.** Milestone 1 already established
+  the split must be time-based; building it now with nothing yet to use it
+  for would be scope creep ahead of the modeling milestone.
+- Full pytest suite after this milestone: 36 passed, 1 skipped (same
+  intentional skip as Milestone 1 — the missing-raw-file error-path test).
