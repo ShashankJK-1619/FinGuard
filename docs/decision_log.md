@@ -103,3 +103,61 @@ Append-only; do not rewrite history, add corrections as new entries.
   for would be scope creep ahead of the modeling milestone.
 - Full pytest suite after this milestone: 36 passed, 1 skipped (same
   intentional skip as Milestone 1 — the missing-raw-file error-path test).
+
+## 2026-09-30 — Milestone 3: chronological split & interpretable baseline
+
+- Built `src/models/` (`schema.py`, `split.py`, `preprocessing.py`,
+  `train_baseline.py`) on top of Milestone 2's
+  `data/processed/baseline_features_v1.parquet`. Full reasoning in
+  `docs/milestone3_baseline_model.md`.
+- **Split on whole calendar-day boundaries** (`TransactionDT // 86400`),
+  not an arbitrary row index, so no single day has transactions in two
+  different segments. Target 60/20/20 train/val/holdout; realized 60.3% /
+  20.1% / 19.6% after day-boundary snapping (356,216 / 118,790 / 115,534
+  rows). Fraud prevalence varies across segments (3.38% / 3.94% / 3.41%),
+  confirming Milestone 1's non-stationarity concern empirically rather
+  than just structurally.
+- **Column-role policy for model inputs is centralized in
+  `src/models/schema.py`**, not scattered across preprocessing code, so
+  every include/exclude decision has one auditable location. Key calls:
+  - `card1`, `addr1`, `P_emaildomain`, `R_emaildomain`, `DeviceInfo` are
+    excluded as raw model inputs in favor of their Milestone-2 derived
+    frequency/recency/missingness proxies — avoids several-hundred-column
+    one-hot blocks and unseen-category risk at scoring time.
+  - `TransactionDT` itself is excluded from the feature matrix (used only
+    to build the split): its undisclosed reference point makes a raw
+    coefficient on it uninterpretable, and `day_index`/`week_index`/
+    `hour_sin`/`hour_cos`/`day_of_week_index` already carry the same
+    information at an interpretable granularity.
+  - `card2`, `card3`, `card5`, `addr2` (masked numeric codes with no
+    Milestone-2-built alternative) are kept as numeric inputs with an
+    explicitly flagged, unverified ordinal/interval assumption — not
+    excluded outright, since Milestone 3 does not retroactively build new
+    Milestone-2-style feature engineering (scope discipline), and not
+    silently trusted either.
+- **Model: plain `LogisticRegression(class_weight="balanced")`**, not
+  resampling (SMOTE/undersampling), to handle ~3.5% fraud prevalence
+  without synthesizing rows or losing coefficient interpretability. No
+  tree-based/boosted model used, per explicit Milestone 3 scope.
+- **No future leakage**: the full preprocessing pipeline (imputer
+  medians, scaler stats, one-hot vocabularies) is fit on the train split
+  only, via a single `sklearn.pipeline.Pipeline`; validation/holdout only
+  ever go through `.transform`. Verified by
+  `tests/models/test_preprocessing.py` and
+  `tests/models/test_train_baseline.py`, not just asserted by
+  construction.
+- **Threshold analysis run on validation only, never on holdout** — holdout
+  is touched exactly once, for final evaluation. No threshold is labeled
+  "best": that requires a business cost function (relative cost of a
+  missed fraud vs. a false alert) that was not defined in this milestone.
+- **Found empirically, not anticipated going in**: `class_weight=
+  "balanced"` produces well-ordered scores (ROC-AUC 0.765 validation,
+  0.732 holdout) but badly miscalibrated probabilities (Brier 0.260
+  validation, 0.316 holdout; calibration curve shows predicted
+  probabilities several multiples above observed fraud rates in every
+  decile bin). Documented explicitly in
+  `docs/milestone3_baseline_model.md` §8 as a limitation — these scores
+  must not be treated as true fraud probabilities without a
+  recalibration step not built here.
+- Full pytest suite after this milestone: 58 passed, 1 skipped (same
+  intentional skip as Milestones 1–2).

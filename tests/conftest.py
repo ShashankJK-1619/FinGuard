@@ -14,3 +14,13 @@ requires_raw_data = pytest.mark.skipif(
         "to run this test."
     ),
 )
+
+_baseline_parquet_path = paths.processed_dir / "baseline_features_v1.parquet"
+
+requires_baseline_features = pytest.mark.skipif(
+    not _baseline_parquet_path.exists(),
+    reason=(
+        f"{_baseline_parquet_path} not present. Run "
+        "`.venv/bin/python -m src.features.build_baseline_dataset` (Milestone 2) first."
+    ),
+)
