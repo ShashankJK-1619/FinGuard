@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.models.split import SECONDS_PER_DAY, SplitError, chronological_split
+from src.models.split import SECONDS_PER_DAY, SplitError, chronological_split, chronological_split_two_way
 
 
 def _toy_df(n_days: int = 20, rows_per_day: int = 10, fraud_every: int = 25):
@@ -90,3 +90,42 @@ def test_shuffled_input_row_order_produces_the_same_split():
     assert set(a_train["TransactionID"]) == set(b_train["TransactionID"])
     assert set(a_val["TransactionID"]) == set(b_val["TransactionID"])
     assert set(a_holdout["TransactionID"]) == set(b_holdout["TransactionID"])
+
+
+def test_two_way_split_covers_every_row_exactly_once_and_is_chronological():
+    df = _toy_df()
+    _, val_df, _, _ = chronological_split(df, train_frac=0.6, val_frac=0.2)
+    first_df, second_df, _ = chronological_split_two_way(val_df, first_frac=0.5)
+
+    assert len(first_df) + len(second_df) == len(val_df)
+    assert set(first_df["TransactionID"]) | set(second_df["TransactionID"]) == set(val_df["TransactionID"])
+    assert first_df["TransactionDT"].max() < second_df["TransactionDT"].min()
+
+
+def test_two_way_split_never_splits_a_calendar_day():
+    df = _toy_df()
+    _, val_df, _, _ = chronological_split(df, train_frac=0.6, val_frac=0.2)
+    first_df, second_df, _ = chronological_split_two_way(val_df, first_frac=0.5)
+
+    first_days = set(first_df["TransactionDT"] // SECONDS_PER_DAY)
+    second_days = set(second_df["TransactionDT"] // SECONDS_PER_DAY)
+    assert first_days & second_days == set()
+
+
+def test_two_way_split_rejects_out_of_range_frac():
+    df = _toy_df()
+    _, val_df, _, _ = chronological_split(df, train_frac=0.6, val_frac=0.2)
+    with pytest.raises(SplitError):
+        chronological_split_two_way(val_df, first_frac=0.0)
+    with pytest.raises(SplitError):
+        chronological_split_two_way(val_df, first_frac=1.0)
+
+
+def test_two_way_split_report_matches_actual_rows():
+    df = _toy_df()
+    _, val_df, _, _ = chronological_split(df, train_frac=0.6, val_frac=0.2)
+    first_df, second_df, report = chronological_split_two_way(val_df, first_frac=0.5)
+
+    assert report["first"]["n_rows"] == len(first_df)
+    assert report["second"]["n_rows"] == len(second_df)
+    assert report["first"]["n_fraud"] == int(first_df["isFraud"].sum())

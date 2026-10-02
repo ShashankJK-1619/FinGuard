@@ -162,3 +162,15 @@ BINARY_FEATURES = [
 ]
 
 ALL_MODEL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES + BINARY_FEATURES
+
+# Milestone 4 (rule 8 follow-up): day_index/week_index are the two model
+# inputs flagged with the extrapolation risk above — any row scored after
+# the training window ends has a day_index/week_index value outside
+# everything the model saw during fitting, which is different from every
+# other numeric feature here (those are bounded quantities/counts, not a
+# monotonically increasing clock). This ablation set removes exactly those
+# two columns so Milestone 4 can measure how much of the model's ranking
+# performance depends on temporal drift proxies versus genuinely
+# behavioral signal, and how that gap changes on the holdout period.
+TIME_DRIFT_FEATURES = ["day_index", "week_index"]
+NUMERIC_FEATURES_NO_TIME_DRIFT = [f for f in NUMERIC_FEATURES if f not in TIME_DRIFT_FEATURES]

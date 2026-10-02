@@ -1,0 +1,10 @@
+{
+  "_disclaimer": "HYPOTHETICAL, illustrative portfolio assumptions chosen by the author for Milestone 4 of this learning project. These numbers do NOT represent Vesta Corporation, the IEEE-CIS competition, any real bank, any real payments company, or any employer. They exist only so the decision-cost framework in src/models/cost_model.py has concrete numbers to compute with. Change them freely; nothing in this repository treats them as real financial figures.",
+  "_review_model_note": "review_capacity_frac/review_fraud_catch_rate/review_false_positive_rate were added in a Milestone 4 methodology correction, replacing an initial assumption that manual review had unlimited capacity and was a perfect fraud backstop. All three remain illustrative and configurable, not measured from any real review operation.",
+  "cost_per_missed_fraud": 500.0,
+  "cost_per_false_positive_decline": 25.0,
+  "cost_per_manual_review": 3.0,
+  "review_capacity_frac": 0.05,
+  "review_fraud_catch_rate": 0.8,
+  "review_false_positive_rate": 0.05
+}

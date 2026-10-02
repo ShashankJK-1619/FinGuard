@@ -22,6 +22,12 @@ policy documented in src/models/schema.py:
 named in NUMERIC_FEATURES/CATEGORICAL_FEATURES/BINARY_FEATURES — including
 TransactionID, isFraud, TransactionDT, and any masked column — can never
 reach the model even if accidentally left in the input frame.
+
+Milestone 4 adds an optional `numeric_features` override (default:
+NUMERIC_FEATURES, so every Milestone 3 call site is unaffected) so the
+Milestone 4 time-feature ablation
+(src/models/schema.py::NUMERIC_FEATURES_NO_TIME_DRIFT) can reuse this exact
+preprocessing logic instead of duplicating it in a second module.
 """
 from __future__ import annotations
 
@@ -33,7 +39,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from src.models.schema import BINARY_FEATURES, CATEGORICAL_FEATURES, NUMERIC_FEATURES
 
 
-def build_preprocessor() -> ColumnTransformer:
+def build_preprocessor(numeric_features: list[str] = NUMERIC_FEATURES) -> ColumnTransformer:
     numeric_pipeline = Pipeline(
         steps=[
             ("impute", SimpleImputer(strategy="median", add_indicator=True)),
@@ -52,7 +58,7 @@ def build_preprocessor() -> ColumnTransformer:
 
     return ColumnTransformer(
         transformers=[
-            ("numeric", numeric_pipeline, NUMERIC_FEATURES),
+            ("numeric", numeric_pipeline, numeric_features),
             ("categorical", categorical_pipeline, CATEGORICAL_FEATURES),
             ("binary", binary_pipeline, BINARY_FEATURES),
         ],

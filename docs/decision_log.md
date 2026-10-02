@@ -161,3 +161,70 @@ Append-only; do not rewrite history, add corrections as new entries.
   recalibration step not built here.
 - Full pytest suite after this milestone: 58 passed, 1 skipped (same
   intentional skip as Milestones 1–2).
+
+## 2026-09-30 — Milestone 4: probability calibration & illustrative fraud decisioning
+
+- Built `src/models/calibration.py`, `configs/cost_assumptions.json` +
+  `src/models/cost_model.py`, and `src/models/train_calibrated.py` on top
+  of Milestone 3's frozen split and baseline pipeline. Full reasoning in
+  `docs/milestone4_calibration_decisioning.md`. No boosted-tree/forest/
+  neural-network model trained, per explicit scope.
+- **Hand-rolled sigmoid/isotonic calibrators instead of
+  `CalibratedClassifierCV(cv="prefit")`**. Reason: this project pins
+  `scikit-learn>=1.4,<2`, a range where `cv="prefit"` support has shifted
+  across releases; a small, directly testable calibrator class (`.fit`/
+  `.transform`) avoids depending on a specific sklearn version's internal
+  behavior and makes the "fit on validation only" guarantee trivial to
+  unit test by mutating holdout after fitting.
+- **Calibrators fit on validation raw probabilities + labels only; holdout
+  only ever `.transform`-ed, never `.fit`-ed** — same no-future-leakage
+  discipline Milestones 2–3 established, now extended to calibration.
+  Verified by `tests/models/test_calibration.py` and
+  `tests/models/test_train_calibrated.py` (mutating holdout after fitting
+  must not change any validation-side number).
+- **Isotonic selected over sigmoid** by lowest validation Brier score
+  (0.0356 vs. 0.0359) — a narrow margin; both cut Brier score by roughly
+  7–9x versus the uncalibrated score on both validation and holdout,
+  while ROC-AUC stayed within noise (sigmoid exactly unchanged by
+  construction; isotonic moved by at most ~0.005 due to tie-induced flat
+  regions) — the clean separation of ranking from calibration quality
+  this milestone set out to demonstrate.
+- **Three-action decisioning (`approve`/`review`/`decline`) models manual
+  review as a perfect fraud backstop** — `fraud_recall` counts review the
+  same as decline. Explicit simplification, not hidden: this project has
+  no empirical review-team accuracy data to build a more realistic
+  partial-catch-rate assumption. Flagged as a limitation in
+  `docs/milestone4_calibration_decisioning.md` §9.
+- **Illustrative cost assumptions ($500 missed fraud / $25 false-positive
+  decline / $3 manual review) are config-driven**
+  (`configs/cost_assumptions.json`), carry an inline disclaimer, and are
+  explicitly NOT claimed to represent Vesta Corporation, IEEE-CIS, a real
+  bank, or any real payments company anywhere in code or docs.
+- **Found empirically, not anticipated going in**: at the chosen base
+  costs, manual review ($3) is cheap enough relative to both alternatives
+  that simple ±2x variations on any single cost input never changed the
+  argmin-cost threshold policy — only the reported total cost moved. Two
+  more extreme, targeted variations were added specifically to
+  demonstrate requirement E's point: raising manual-review cost to $60
+  (above the $25 decline cost) flips the policy toward outright decline
+  and drops fraud recall from 0.640 to 0.367; dropping missed-fraud cost
+  to $5 collapses the policy to all-approve (recall 0). This is treated
+  as a genuine finding about this specific cost configuration (locally
+  flat near current assumptions, but moves sharply past a break-even
+  point), not a flaw in the sensitivity mechanism — see
+  `docs/milestone4_calibration_decisioning.md` §7.
+- **Found empirically, not anticipated going in**: removing
+  `day_index`/`week_index` (the two linear time-drift features Milestone 3
+  flagged as an extrapolation risk) did not hurt holdout performance — it
+  slightly improved holdout ROC-AUC (0.7317→0.7351) and holdout PR-AUC
+  (0.1202→0.1429). Treated as suggestive from a single split, not
+  conclusive, but it weakens the case for keeping these features given
+  they already carried a documented deployment-risk concern with no
+  offsetting performance benefit found here.
+- **Threshold/cost exploration run on validation only; holdout touched
+  once** for a single evaluation of the validation-selected policy, never
+  re-optimized there — holdout has now been touched once each in
+  Milestones 3 and 4 and would need to be treated as contaminated if any
+  future milestone revisits modeling choices against this same slice.
+- Full pytest suite after this milestone: 86 passed, 1 skipped (same
+  intentional skip as Milestones 1–3).

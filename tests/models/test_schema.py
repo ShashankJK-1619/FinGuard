@@ -7,8 +7,10 @@ from src.models.schema import (
     MASKED_CODE_NUMERIC_FEATURES,
     MASKED_COLUMN_PATTERN,
     NUMERIC_FEATURES,
+    NUMERIC_FEATURES_NO_TIME_DRIFT,
     TARGET_COL,
     TIME_COL,
+    TIME_DRIFT_FEATURES,
 )
 
 
@@ -36,3 +38,14 @@ def test_masked_code_numeric_features_are_a_subset_of_numeric_features():
 
 def test_excluded_columns_do_not_overlap_model_features():
     assert set(EXCLUDED_COLUMNS) & set(ALL_MODEL_FEATURES) == set()
+
+
+def test_time_drift_features_are_removed_in_the_ablation_set():
+    assert set(TIME_DRIFT_FEATURES) == {"day_index", "week_index"}
+    assert set(TIME_DRIFT_FEATURES) <= set(NUMERIC_FEATURES)
+    assert set(TIME_DRIFT_FEATURES).isdisjoint(NUMERIC_FEATURES_NO_TIME_DRIFT)
+
+
+def test_ablation_numeric_features_otherwise_match_full_numeric_features():
+    assert set(NUMERIC_FEATURES) - set(TIME_DRIFT_FEATURES) == set(NUMERIC_FEATURES_NO_TIME_DRIFT)
+    assert len(NUMERIC_FEATURES_NO_TIME_DRIFT) == len(NUMERIC_FEATURES) - len(TIME_DRIFT_FEATURES)

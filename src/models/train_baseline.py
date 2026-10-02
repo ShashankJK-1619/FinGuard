@@ -54,16 +54,24 @@ def load_baseline_table(paths: Paths | None = None) -> pd.DataFrame:
     return con.execute(f"SELECT * FROM read_parquet('{path}')").fetchdf()
 
 
-def build_model_pipeline() -> Pipeline:
+def build_model_pipeline(numeric_features: list[str] | None = None) -> Pipeline:
     """class_weight="balanced" rather than resampling (SMOTE etc.): it
     rebalances the loss function to account for the ~3.5% fraud prevalence
     without synthesizing data or adding a resampling step beyond Milestone
     3's scope, and it leaves the fitted model a plain logistic regression
     whose coefficients are still directly interpretable.
+
+    `numeric_features` defaults to schema.NUMERIC_FEATURES (every Milestone
+    3 call site is unaffected); Milestone 4's time-feature ablation passes
+    schema.NUMERIC_FEATURES_NO_TIME_DRIFT instead, see
+    src/models/train_calibrated.py.
     """
+    from src.models.schema import NUMERIC_FEATURES
+
+    numeric_features = numeric_features if numeric_features is not None else NUMERIC_FEATURES
     return Pipeline(
         steps=[
-            ("preprocess", build_preprocessor()),
+            ("preprocess", build_preprocessor(numeric_features)),
             (
                 "clf",
                 LogisticRegression(
@@ -76,17 +84,22 @@ def build_model_pipeline() -> Pipeline:
     )
 
 
-def evaluate(pipeline: Pipeline, df: pd.DataFrame, threshold: float = DEFAULT_THRESHOLD) -> dict:
-    y_true = df[TARGET_COL].to_numpy()
-    y_prob = pipeline.predict_proba(df)[:, 1]
+def evaluate_probs(y_true: np.ndarray, y_prob: np.ndarray, threshold: float = DEFAULT_THRESHOLD) -> dict:
+    """Same metric set as `evaluate`, but takes raw arrays rather than a
+    fitted pipeline + DataFrame. Added in Milestone 4 so calibrated
+    probability arrays (which aren't produced by calling .predict_proba on
+    a pipeline — see src/models/calibration.py) can be scored with the
+    exact same metric logic as the Milestone 3 pipeline-based `evaluate`,
+    instead of a second, divergent implementation.
+    """
     y_pred = (y_prob >= threshold).astype(int)
 
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy="quantile")
 
     return {
-        "n_rows": len(df),
-        "fraud_prevalence": float(y_true.mean()),
+        "n_rows": len(y_true),
+        "fraud_prevalence": float(np.mean(y_true)),
         "threshold": threshold,
         "confusion_matrix": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
@@ -100,6 +113,12 @@ def evaluate(pipeline: Pipeline, df: pd.DataFrame, threshold: float = DEFAULT_TH
             "observed_fraud_rate": [float(x) for x in prob_true],
         },
     }
+
+
+def evaluate(pipeline: Pipeline, df: pd.DataFrame, threshold: float = DEFAULT_THRESHOLD) -> dict:
+    y_true = df[TARGET_COL].to_numpy()
+    y_prob = pipeline.predict_proba(df)[:, 1]
+    return evaluate_probs(y_true, y_prob, threshold)
 
 
 def threshold_analysis(pipeline: Pipeline, df: pd.DataFrame, thresholds: list[float] = THRESHOLD_GRID) -> list[dict]:
