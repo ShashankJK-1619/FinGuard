@@ -144,6 +144,7 @@ def test_build_cost_variations_preserves_unvaried_fields():
         "fraud_loss_near_zero",
         "review_capacity_tightened",
         "review_catch_rate_low",
+        "review_false_positive_rate_high",
     }
     fraud_2x = next(v for v in variations if v["label"] == "fraud_loss_2x")
     assert fraud_2x["cost_per_missed_fraud"] == pytest.approx(costs.cost_per_missed_fraud * 2)
@@ -152,6 +153,8 @@ def test_build_cost_variations_preserves_unvaried_fields():
     assert capacity_variation["review_capacity_frac"] == pytest.approx(0.01)
     catch_rate_variation = next(v for v in variations if v["label"] == "review_catch_rate_low")
     assert catch_rate_variation["review_fraud_catch_rate"] == pytest.approx(0.4)
+    fp_rate_variation = next(v for v in variations if v["label"] == "review_false_positive_rate_high")
+    assert fp_rate_variation["review_false_positive_rate"] == pytest.approx(0.30)
 
 
 @requires_baseline_features

@@ -228,3 +228,74 @@ Append-only; do not rewrite history, add corrections as new entries.
   future milestone revisits modeling choices against this same slice.
 - Full pytest suite after this milestone: 86 passed, 1 skipped (same
   intentional skip as Milestones 1–3).
+
+## 2026-10-02 — Milestone 4 methodology correction: leakage-safe calibration evaluation + realistic review model
+
+**Supersedes the numbers in the 2026-09-30 Milestone 4 entry above; that
+entry is left unedited per the append-only convention, but its calibration
+comparison and cost-sensitivity numbers should no longer be cited.**
+
+- **Bug found**: the original Milestone 4 run fit each calibrator on the
+  validation period and then reported that calibrator's Brier score /
+  reliability table on the SAME validation period — an in-sample,
+  optimistically-biased evaluation. This was most visible for isotonic
+  regression, whose "validation" reliability table had `mean_predicted_prob`
+  exactly equal to `observed_fraud_rate` in every bin, a direct symptom of
+  evaluating a non-parametric fit on its own training data.
+- **Fix**: `src/models/split.py::chronological_split_two_way` further
+  divides Milestone 3's validation period, chronologically, into `cal_fit`
+  (earlier half, day ≤121: 61,343 rows, 4.37% fraud) and `selection` (later
+  half, day ≥122: 57,447 rows, 3.48% fraud) — the original
+  train/validation/holdout day boundaries are untouched. Calibrators are
+  `.fit()` on `cal_fit` only; Brier score, reliability tables, and the
+  cost-based threshold/cost grid are all evaluated/selected on `selection`,
+  which no calibrator or policy ever saw during fitting.
+- **Corrected result reverses the original calibrator choice**: evaluated
+  out-of-sample, isotonic's Brier score on `selection` (0.03282) is
+  *worse*, not better, than sigmoid's (0.03247), and isotonic is worse on
+  the temporal benchmark too (0.03519 vs. sigmoid's 0.03298) and on PR-AUC
+  on both splits. **Sigmoid is now selected** — confirming the suspicion
+  that isotonic's original apparent edge (0.0356 vs. 0.0359, in-sample) was
+  an overfitting artifact of evaluating it on its own fit data, not a real
+  calibration advantage. `select_best_calibration_method` now defaults to
+  preferring sigmoid unless isotonic beats it by at least 3% relative Brier
+  improvement on the out-of-sample `selection` split; here isotonic is
+  behind, not ahead, so the rule doesn't need to activate.
+- **Terminology correction**: the final chronological segment, called
+  "holdout" through Milestone 3 and the original Milestone 4 run, is
+  renamed **temporal benchmark** everywhere (code, tests, docs). It has now
+  been inspected three times during iterative development (Milestone 3
+  baseline metrics, original Milestone 4 calibration/policy evaluation,
+  this correction's calibration/policy re-evaluation) and must not be
+  presented as a pristine, never-touched final unbiased test set — this is
+  now stated explicitly in `docs/milestone4_calibration_decisioning.md` and
+  `README.md` rather than left implicit.
+- **Review-realism correction to `src/models/cost_model.py`**: the original
+  cost model treated manual review as having unlimited capacity and a
+  perfect fraud-catch rate. `CostAssumptions` now has three new, independently
+  configurable fields — `review_capacity_frac`, `review_fraud_catch_rate`,
+  `review_false_positive_rate` — all defaulting to the old unlimited/perfect
+  behavior so pre-correction callers are unaffected. At the illustrative
+  base assumptions (5% capacity, 80% catch rate, 5% review error rate), the
+  `selection`-split lowest-cost policy (review≥0.05, decline≥0.3) wants to
+  review 12,652 of 57,447 transactions (22.0%) but capacity caps this at
+  2,872 (5%): the 2,872 **highest-probability** candidates are kept and the
+  other 9,780 fall back to **approve, not decline** (declining them outright
+  would be stricter than the threshold pair itself specifies). This capacity
+  constraint alone cuts fraud recall from what it would otherwise be;
+  tightening capacity further to 1% (`review_capacity_tightened`
+  sensitivity variation) drops recall from 0.1804 to 0.0616, and degrading
+  the review catch rate to 40% (`review_catch_rate_low`) drops it to 0.0902
+  — both demonstrate the realistic-review-model correction has real teeth,
+  not just a theoretical one.
+- **New, incidental finding from the correction**: under sigmoid
+  calibration, no transaction in the `selection` split reaches a calibrated
+  probability of 0.3, so `decline_volume` is 0 across the *entire* 43-pair
+  threshold/cost grid — every lowest-cost policy found here acts solely
+  through (capacity-limited) review, never outright decline, at these
+  illustrative costs. This is a property of this specific calibrated-score
+  distribution and cost configuration, not a modeling bug.
+- Full pytest suite after this correction: 98 passed, 1 skipped (same
+  intentional skip carried from Milestones 1–3, plus 12 net new tests for
+  `chronological_split_two_way`, the review-realism cost-model parameters,
+  and the corrected calibration-comparison/selection-method tests).

@@ -208,7 +208,7 @@ def build_cost_variations(base_costs: CostAssumptions) -> list[dict]:
       - `fraud_loss_near_zero`: drops missed-fraud cost low enough that
         acting on anything stops being worth it at all.
 
-    Two further variations exercise the Milestone 4 methodology
+    Three further variations exercise the Milestone 4 methodology
     correction's realistic-review-model parameters specifically:
       - `review_capacity_tightened`: a much smaller review capacity,
         intended to actually trigger the prioritize-highest-risk /
@@ -217,6 +217,11 @@ def build_cost_variations(base_costs: CostAssumptions) -> list[dict]:
       - `review_catch_rate_low`: a materially worse review catch rate, to
         show recall degrading once review is modeled as an unreliable
         (not perfect) backstop, independent of its capacity limit.
+      - `review_false_positive_rate_high`: a materially worse review error
+        rate (legitimate transactions incorrectly flagged by the review
+        process itself), isolating the third new review-realism parameter
+        from the other two so its cost/false-positive effect can be read
+        on its own row.
     """
     return [
         {"label": "fraud_loss_2x", "cost_per_missed_fraud": base_costs.cost_per_missed_fraud * 2},
@@ -238,6 +243,7 @@ def build_cost_variations(base_costs: CostAssumptions) -> list[dict]:
         {"label": "fraud_loss_near_zero", "cost_per_missed_fraud": 5.0},
         {"label": "review_capacity_tightened", "review_capacity_frac": 0.01},
         {"label": "review_catch_rate_low", "review_fraud_catch_rate": 0.4},
+        {"label": "review_false_positive_rate_high", "review_false_positive_rate": 0.30},
     ]
 
 
@@ -246,6 +252,13 @@ def main() -> int:
     df = load_baseline_table(paths)
 
     train_df, val_df, temporal_benchmark_df, split_report = chronological_split(df)
+    # src.models.split.chronological_split is a generic, milestone-agnostic
+    # utility and always labels its third segment "holdout" internally
+    # (Milestone 3's original name). For any Milestone-4-level output
+    # (stdout, the written JSON artifact) that segment is relabeled
+    # "temporal_benchmark" here — see module docstring and
+    # docs/milestone4_calibration_decisioning.md §0 for why.
+    split_report = {("temporal_benchmark" if k == "holdout" else k): v for k, v in split_report.items()}
     print("=== Split report (train/validation boundaries identical to Milestone 3; final segment renamed temporal_benchmark) ===")
     print(json.dumps(split_report, indent=2))
 

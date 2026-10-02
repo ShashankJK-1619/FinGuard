@@ -43,22 +43,28 @@ Milestone 1 covered data inspection, join validation, a data dictionary,
 and a leakage review. Milestone 2 added a point-in-time-safe feature set
 and a transparent baseline modeling table
 (`data/processed/baseline_features_v1.parquet`, train only). Milestone 3
-added a chronological train/validation/holdout split and a first
-interpretable logistic-regression baseline with full evaluation,
-threshold analysis, and coefficient interpretation — see
-[docs/milestone3_baseline_model.md](docs/milestone3_baseline_model.md).
+added a chronological train / validation / holdout split (at the time,
+called "holdout") and a first interpretable logistic-regression baseline
+with full evaluation, threshold analysis, and coefficient interpretation
+— see [docs/milestone3_baseline_model.md](docs/milestone3_baseline_model.md).
 Milestone 4 recalibrated that baseline's probabilities (sigmoid/Platt and
-isotonic, fit on validation only, evaluated on holdout), built an
-explicit illustrative fraud-decision cost framework (approve/review/
-decline), explored threshold/cost tradeoffs and their sensitivity to cost
-assumptions, and ran a time-feature ablation — see
-[docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md).
-No production threshold has been chosen (threshold/cost exploration only,
-per explicit scope), no non-linear model has been tried, and no
-monitoring/decisioning layer exists. See
-[docs/decision_log.md](docs/decision_log.md) for the full reasoning
-trail, [docs/feature_dictionary.md](docs/feature_dictionary.md) for
-per-feature documentation, and
+isotonic) and built an explicit illustrative fraud-decision cost
+framework (approve/review/decline) on top of it, then underwent a
+**methodology correction**: calibrators must never be evaluated on the
+same data used to fit them, so Milestone 3's validation period is now
+chronologically sub-split into a `cal_fit` slice (fit only) and a
+`selection` slice (evaluation and threshold/cost selection, never fit
+on); and the final chronological segment — previously called "holdout" —
+is renamed **temporal benchmark**, because it has by now been inspected
+during iterative development across Milestones 3 and 4 and is no longer
+a pristine, never-touched final test set. See
+[docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
+for the corrected methodology and current numbers. No production
+threshold has been chosen (threshold/cost exploration only, per explicit
+scope), no non-linear model has been tried, and no monitoring/decisioning
+layer exists. See [docs/decision_log.md](docs/decision_log.md) for the
+full reasoning trail, [docs/feature_dictionary.md](docs/feature_dictionary.md)
+for per-feature documentation, and
 [docs/milestone2_feature_design.md](docs/milestone2_feature_design.md) for
 the Milestone 2 design rationale.
 
@@ -143,8 +149,8 @@ per `TransactionID`). See `docs/feature_dictionary.md` for what's in it.
 ```
 
 Requires `data/processed/baseline_features_v1.parquet` (Milestone 2)
-already built. Prints the split report, validation/holdout metrics,
-threshold analysis, and coefficient table to stdout, and writes
+already built. Prints the split report, validation/temporal-benchmark
+metrics, threshold analysis, and coefficient table to stdout, and writes
 `data/interim/milestone3_metrics.json`. See
 [docs/milestone3_baseline_model.md](docs/milestone3_baseline_model.md) for
 the full write-up.
@@ -156,14 +162,19 @@ the full write-up.
 ```
 
 Requires `data/processed/baseline_features_v1.parquet` (Milestone 2).
-Reuses Milestone 3's chronological split and baseline pipeline, fits
-sigmoid and isotonic calibrators on validation only, evaluates calibration
-on holdout, runs the illustrative cost-based threshold grid and
-sensitivity analysis (validation only), runs the day_index/week_index
-ablation, and writes `data/interim/milestone4_metrics.json`. Cost
-assumptions are read from `configs/cost_assumptions.json` — all three are
-**hypothetical, illustrative values**, not real financial figures (see
-the file's own `_disclaimer` field). See
+Reuses Milestone 3's chronological train/validation/temporal-benchmark
+split unchanged, then further sub-splits the validation period
+chronologically into `cal_fit` (earlier half) and `selection` (later
+half). Sigmoid and isotonic calibrators are fit on `cal_fit` only;
+calibration quality (Brier score, reliability tables) and the cost-based
+threshold/cost grid + sensitivity analysis are evaluated on `selection` —
+data the calibrator was never fit on — and, separately, once each on the
+temporal benchmark. Also runs the day_index/week_index ablation and
+writes `data/interim/milestone4_metrics.json`. Cost assumptions,
+including manual-review capacity, review fraud-catch rate, and review
+false-positive rate, are read from `configs/cost_assumptions.json` — all
+are **hypothetical, illustrative values**, not real financial figures
+(see the file's own `_disclaimer` field). See
 [docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
 for the full write-up.
 
@@ -195,26 +206,45 @@ for the full write-up.
   CSVs are in place.
 - **Milestone 3's logistic-regression baseline has well-ordered but
   miscalibrated probabilities** (a direct effect of
-  `class_weight="balanced"`) — fixed in Milestone 4 via sigmoid/isotonic
-  post-hoc calibration fit on validation only (Brier score cut roughly
-  7–9x on both validation and holdout; ROC-AUC essentially unchanged, as
-  expected for a ranking-preserving transform). See
-  [docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
+  `class_weight="balanced"`) — fixed in Milestone 4 via post-hoc
+  calibration fit on a `cal_fit` slice carved out of the validation
+  period, and evaluated out-of-sample on a disjoint `selection` slice and
+  on the temporal benchmark (Brier score cut by roughly 8x on both;
+  ROC-AUC essentially unchanged, as expected for a ranking-preserving
+  transform). **Sigmoid was selected**, not isotonic: once evaluated
+  strictly out-of-sample, isotonic no longer beats sigmoid on Brier score
+  (it is in fact slightly worse on both the `selection` split and the
+  temporal benchmark) — isotonic's earlier apparent edge was an artifact
+  of being evaluated on its own fit data, which this correction removed.
+  See [docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
   §3–4.
 - **No production deployment threshold has been chosen.** Milestone 4
-  built an illustrative, config-driven cost framework and explored a
-  44-pair threshold/cost tradeoff grid plus an 8-variation sensitivity
-  analysis (§6–7 of the same doc), but every cost figure is explicitly
+  built an illustrative, config-driven cost framework (now including
+  configurable manual-review capacity, review fraud-catch rate, and
+  review false-positive rate) and explored a threshold/cost tradeoff grid
+  plus a 10-variation sensitivity analysis on the `selection` split only
+  (§6–7 of the same doc), but every cost figure is explicitly
   hypothetical and no threshold is labeled a final production policy.
-- **Manual review is modeled as a perfect fraud backstop** in the
-  Milestone 4 cost framework — no real review-team accuracy data exists
-  in this project to build a more realistic partial-catch-rate
-  assumption. See the same doc, §9.
+- **Manual review has finite capacity and is not a perfect fraud
+  backstop** in the Milestone 4 cost framework (corrected from an earlier
+  unlimited/perfect-review assumption) — `review_capacity_frac`,
+  `review_fraud_catch_rate`, and `review_false_positive_rate` are all
+  configurable in `configs/cost_assumptions.json` and remain illustrative,
+  not measured from a real review operation. When desired review volume
+  exceeds capacity, the highest-risk transactions are prioritized and
+  the rest fall back to **approve, not decline** — declining a
+  review-band transaction outright would be stricter than what the
+  threshold pair itself specifies. See the same doc, §5 and §9.
+- **The final chronological segment is now called "temporal benchmark,"
+  not "holdout."** It has been inspected multiple times across
+  Milestones 3 and 4 (baseline metrics, calibration comparison, policy
+  evaluation) and must not be treated as a pristine, never-touched final
+  test set.
 - **`day_index`/`week_index` (linear time-drift proxies) were found to
-  slightly *hurt* holdout ranking performance when included** (Milestone
-  4 ablation, same doc §8) — suggestive from one split, not conclusive,
-  but it reinforces Milestone 3's extrapolation-risk concern about these
-  two features with no offsetting benefit found here.
+  slightly *hurt* temporal-benchmark ranking performance when included**
+  (Milestone 4 ablation, same doc §8) — suggestive from one split, not
+  conclusive, but it reinforces Milestone 3's extrapolation-risk concern
+  about these two features with no offsetting benefit found here.
 - No non-linear model (random forest, gradient boosting, etc.) has been
   tried — Milestones 3–4 were scoped to an interpretable linear baseline
   only, by explicit instruction.
