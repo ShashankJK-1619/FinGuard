@@ -299,3 +299,150 @@ comparison and cost-sensitivity numbers should no longer be cited.**
   intentional skip carried from Milestones 1–3, plus 12 net new tests for
   `chronological_split_two_way`, the review-realism cost-model parameters,
   and the corrected calibration-comparison/selection-method tests).
+
+## 2026-10-02 — Milestone 5: transparent nonlinear model comparison
+
+- Added `src/models/train_nonlinear.py`
+  (`HistGradientBoostingClassifier`) on top of Milestone 3-4's frozen
+  split, cal_fit/selection sub-split, calibration methodology, and cost
+  framework — all reused unchanged. Full reasoning in
+  `docs/milestone5_nonlinear_comparison.md`. No masked `C*`/`D*`/`M*`/`V*`/
+  `id_*` feature introduced; no deep learning, no graph model, no Kaggle
+  test labels used.
+- **`HistGradientBoostingClassifier` chosen over XGBoost/LightGBM**: no
+  dependency/runtime tradeoff was found that justified a new dependency —
+  it already ships with the pinned `scikit-learn>=1.4,<2` requirement,
+  handles missing values and categorical splits natively, and the whole
+  milestone (tuning + fitting + calibration + decisioning + importance, on
+  the real ~472k-row table) ran in ≈3m12s wall clock.
+- **A dedicated tree-native preprocessor
+  (`build_tree_preprocessor`) was built instead of reusing
+  `src.models.preprocessing.build_preprocessor` as-is**: scaling is
+  irrelevant to a tree's threshold splits, and one-hot-encoding a
+  categorical column would throw away the native categorical-split
+  capability that's one of this model's actual advantages. Numeric columns
+  pass through un-imputed (HGB treats missingness as its own learned split
+  direction); categorical columns are ordinal-encoded with an explicit
+  `categorical_features` boolean mask telling HGB to treat them as
+  discrete categories, not magnitudes. Still the exact same transparent
+  feature set as Milestones 3-4 — this is a preprocessing-shape choice,
+  not a feature-set change.
+- **Hyperparameter tuning kept deliberately modest and train-only**: 4
+  explicitly enumerated candidate configurations (not a brute-force grid),
+  scored by mean PR-AUC across 3 train-only, time-aware
+  (`TimeSeriesSplit`, forward-chaining) folds — never touching
+  `cal_fit`/`selection`/`temporal_benchmark`. Winner:
+  `max_iter=200, max_leaf_nodes=63, learning_rate=0.05,
+  l2_regularization=1.0` (mean PR-AUC 0.2019 vs. 0.1882-0.1978 for the
+  other three candidates). Tuning itself took ≈78s (12 fits).
+- **Nonlinear model clearly outranks the logistic baseline on identical
+  splits**: calibrated ROC-AUC 0.7914 vs. 0.7454 (`selection`), 0.7788 vs.
+  0.7317 (`temporal_benchmark`); PR-AUC 0.1969 vs. 0.1273 (`selection`),
+  0.1722 vs. 0.1202 (`temporal_benchmark`). Both models generalize forward
+  in time with only a small drop from `selection` to `temporal_benchmark`
+  — neither is dramatically more fragile to the forward time gap.
+- **Sigmoid selected over isotonic for the nonlinear model too**, by the
+  same out-of-sample rule Milestone 4 established — isotonic's edge on
+  `selection` Brier (0.03067 vs. 0.03075) is under 0.3% relative, nowhere
+  near the 3% bar. Notably, the nonlinear model's *uncalibrated* Brier
+  score (0.0992) was already far better-behaved than the logistic
+  baseline's uncalibrated Brier (0.2609) — `class_weight="balanced"`
+  distorts this model's raw probability output less severely — but
+  calibration still clearly helps both (0.0992→0.0307 nonlinear,
+  0.2609→0.0325 logistic), so it remains necessary for both, not optional
+  for either.
+- **Under identical illustrative cost assumptions, the nonlinear model's
+  own selection-chosen policy (same `(0.05, 0.30)` threshold pair as the
+  logistic model's) roughly doubles fraud recall** (e.g. 0.180→0.345 on
+  `selection`) **and lowers illustrative total cost by 15-18%** on both
+  `selection` and `temporal_benchmark` — but with materially more false
+  positives (121→771 on `selection`), a visible tradeoff, not a free win.
+  Review volume is identical between models (same `review_capacity_frac`
+  applied to the same row counts); the nonlinear model's extra recall
+  comes from its decline channel and from reviewing a more fraud-dense
+  subset within the same capacity, not a larger review budget. Not a
+  production policy recommendation — same hypothetical-cost and
+  finite/imperfect-review caveats as Milestone 4 apply unchanged.
+- **Zero top-10 overlap between logistic |coefficient| and nonlinear
+  permutation-importance rankings — a granularity artifact, not a real
+  disagreement**: `extract_coefficients`'s `source_column` is a one-hot
+  *level* name for categorical features (e.g. `ProductCD_R`), while
+  permutation importance shuffles the whole raw column (`ProductCD`).
+  Read at the column level, both models independently surface
+  `ProductCD`, `DeviceType`, `email_domain_match`, and identity/device
+  missingness signal near the top — real qualitative agreement, reported
+  at different granularities on purpose rather than papered over.
+- **`day_index`/`week_index` ablation repeated for the nonlinear model,
+  same qualitative finding as Milestone 4's logistic ablation**: excluding
+  them very slightly improves `temporal_benchmark` ROC-AUC (0.7788→0.7799)
+  though PR-AUC/Brier move slightly the other way; both features scored
+  exactly 0.0000 permutation importance. No evidence here that they earn
+  their documented extrapolation risk. Per explicit instruction, the
+  default preferred nonlinear configuration excludes them
+  (`NUMERIC_FEATURES_NO_TIME_DRIFT`); the head-to-head comparison above
+  uses the full feature set to stay apples-to-apples with the
+  already-established Milestone 3/4 logistic baseline specifically.
+- `temporal_benchmark` has now been touched a fourth time across
+  Milestones 3-5 (Milestone 3 baseline metrics, Milestone 4 original
+  calibration/policy evaluation, Milestone 4's correction re-evaluation,
+  this milestone's logistic-vs-nonlinear comparison) — still explicitly
+  not a pristine, never-touched final test set.
+- Full pytest suite after this milestone: 109 passed, 1 skipped (98
+  carried forward + 11 new tests in `tests/models/test_train_nonlinear.py`;
+  same intentional skip carried from Milestones 1-4).
+
+## 2026-10-02 — Milestone 5 consistency-pass correction: preferred-configuration metrics were not actually run
+
+- **Bug found on review**: the original Milestone 5 report recommended the
+  no-`day_index`/`week_index` nonlinear configuration as "preferred" but
+  the headline calibrated/decisioning tables (§4/§6 of
+  `docs/milestone5_nonlinear_comparison.md`) showed the *with*-time-index
+  configuration's numbers — those two configurations are not numerically
+  identical, so the recommendation was not actually backed by the metrics
+  displayed. The `day_index`/`week_index` ablation that *was* run
+  (`time_feature_ablation_nonlinear`) only ever reported bare, uncalibrated
+  ROC-AUC/PR-AUC/Brier — it never calibrated, never ran decision-policy
+  comparison, for either feature-set variant.
+- **Fix**: added `nonlinear_full_pipeline` to `src/models/train_nonlinear.py`
+  — one shared code path (fit on train → raw probs on cal_fit/selection/
+  temporal_benchmark → sigmoid/isotonic comparison fit on cal_fit only →
+  `select_best_calibration_method` → calibrated metrics via `evaluate_probs`
+  → `decision_policy_comparison` using the SAME `costs` object/threshold
+  grids for every caller). `main()` now calls this once for the
+  with-time-index feature set and once for the no-time-drift (preferred)
+  feature set, so both configurations' calibrated and decisioning numbers
+  come from the identical pipeline and the identical cost assumptions —
+  neither was changed to favor either configuration.
+- **`time_feature_ablation_nonlinear`'s uncalibrated Brier is now
+  explicitly labeled**: each summary dict carries
+  `brier_score_is_calibrated: False`, and the doc's ablation table (§8a) is
+  now clearly separated from a new §8b "preferred-configuration consistency
+  check" table that reports the same with/without comparison using
+  CALIBRATED metrics from the full pipeline — the two must not be read as
+  the same quantity.
+- **Corrected finding**: the preferred (no-time-drift) configuration's own
+  numbers are very close to, but not identical to, the with-time-index
+  configuration's: calibrated temporal_benchmark ROC-AUC is marginally
+  *better* without the time features (0.7788→0.7799), but PR-AUC is
+  meaningfully *worse* (0.1722→0.1536, ~10.8% relative) and illustrative
+  decisioning cost is marginally *higher* (+0.7% on `selection`, +0.9% on
+  `temporal_benchmark`) than the with-time-index configuration's own cost.
+  Against the **logistic baseline**, the preferred configuration still wins
+  decisively (fraud recall 0.180→0.337 on `selection`, 0.170→0.316 on
+  `temporal_benchmark`; illustrative cost down 17.3%/14.5%) — slightly less
+  of a win than the with-time-index configuration's 17.8%/15.3%, but still
+  a clear, large improvement. The net effect of excluding
+  `day_index`/`week_index` is small and metric-dependent, not a clean win
+  on every axis; it remains the recommended default because both features
+  scored exactly 0.0000 permutation importance and carry documented
+  extrapolation risk, not because it is strictly better on every metric.
+- Hyperparameters were NOT re-tuned for this correction — the same chosen
+  configuration (`max_iter=200, max_leaf_nodes=63, learning_rate=0.05,
+  l2_regularization=1.0`) is reused unchanged for both feature-set
+  configurations, as before. Cost assumptions and threshold grids were not
+  changed.
+- Full pytest suite after this correction: 109 passed, 1 skipped (same
+  count as before the correction — no test needed to change, since
+  `main()` itself is not directly unit-tested and all touched function
+  signatures (`time_feature_ablation_nonlinear`,
+  `decision_policy_comparison`, etc.) kept their existing contracts).

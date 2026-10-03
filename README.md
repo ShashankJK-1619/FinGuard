@@ -4,10 +4,10 @@ A portfolio-quality FinTech data science project built to learn payments,
 fraud, and credit risk data science from first principles. Every technical
 decision is documented so it can be explained, not just demonstrated.
 
-**Current scope: Module B (Fraud Detection) only, through Milestone 4.**
+**Current scope: Module B (Fraud Detection) only, through Milestone 5.**
 Modules A (Payments/Product Analytics) and C (Credit Risk) are planned but
-not started. Later Module B milestones (a non-linear model, production
-threshold selection, monitoring) are also not started.
+not started. Later Module B milestones (production threshold/model
+selection, monitoring) are also not started.
 
 ## Business problem (for Module B)
 
@@ -37,7 +37,7 @@ as, data from any company the author has worked for.**
   - `data/raw/test_transaction.csv`
   - `data/raw/test_identity.csv`
 
-## Project status: calibrated probabilities + illustrative cost decisioning, not a production model
+## Project status: calibrated logistic + nonlinear model comparison, not a production model
 
 Milestone 1 covered data inspection, join validation, a data dictionary,
 and a leakage review. Milestone 2 added a point-in-time-safe feature set
@@ -59,12 +59,20 @@ is renamed **temporal benchmark**, because it has by now been inspected
 during iterative development across Milestones 3 and 4 and is no longer
 a pristine, never-touched final test set. See
 [docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
-for the corrected methodology and current numbers. No production
-threshold has been chosen (threshold/cost exploration only, per explicit
-scope), no non-linear model has been tried, and no monitoring/decisioning
-layer exists. See [docs/decision_log.md](docs/decision_log.md) for the
-full reasoning trail, [docs/feature_dictionary.md](docs/feature_dictionary.md)
-for per-feature documentation, and
+for the corrected methodology and current numbers. Milestone 5 added one
+nonlinear tabular model (`HistGradientBoostingClassifier`) and compared
+it fairly against the logistic baseline — same transparent feature set,
+same chronological split, same cal_fit/selection calibration methodology,
+same illustrative cost framework — on ranking, calibration, business-
+decision performance, and feature importance; the nonlinear model
+clearly outranks the logistic baseline on this dataset, but no production
+threshold or production model has been chosen (comparison only, per
+explicit scope), and no monitoring/decisioning layer exists. See
+[docs/milestone5_nonlinear_comparison.md](docs/milestone5_nonlinear_comparison.md)
+for the full write-up. See [docs/decision_log.md](docs/decision_log.md)
+for the full reasoning trail,
+[docs/feature_dictionary.md](docs/feature_dictionary.md) for per-feature
+documentation, and
 [docs/milestone2_feature_design.md](docs/milestone2_feature_design.md) for
 the Milestone 2 design rationale.
 
@@ -78,16 +86,17 @@ data/interim/     Intermediate artifacts (gitignored)
 data/processed/   baseline_features_v1.parquet (gitignored, not committed)
 docs/             Generated reports + written analysis (data profile, join
                   validation, time structure, data dictionary, leakage
-                  review, feature dictionary, milestone 2/3/4 design docs,
-                  decision log)
+                  review, feature dictionary, milestone 2/3/4/5 design
+                  docs, decision log)
 notebooks/        Exploratory notebooks (none yet)
 src/data/         Config, DuckDB loaders, inspection/validation scripts
 src/features/     Point-in-time-safe feature functions + baseline dataset builder
 src/models/       Chronological split, preprocessing pipeline,
-                  logistic-regression baseline, calibration, and
-                  illustrative cost-based decisioning (schema.py, split.py,
-                  preprocessing.py, train_baseline.py, calibration.py,
-                  cost_model.py, train_calibrated.py)
+                  logistic-regression baseline, calibration, illustrative
+                  cost-based decisioning, and nonlinear model comparison
+                  (schema.py, split.py, preprocessing.py,
+                  train_baseline.py, calibration.py, cost_model.py,
+                  train_calibrated.py, train_nonlinear.py)
 tests/            pytest suite (incl. tests/features/ and tests/models/
                   leakage-safety tests)
 ```
@@ -178,7 +187,29 @@ are **hypothetical, illustrative values**, not real financial figures
 [docs/milestone4_calibration_decisioning.md](docs/milestone4_calibration_decisioning.md)
 for the full write-up.
 
-## Known limitations (as of Milestone 4)
+## Running Milestone 5 nonlinear model comparison
+
+```bash
+.venv/bin/python -m src.models.train_nonlinear
+```
+
+Requires `data/processed/baseline_features_v1.parquet` (Milestone 2).
+Reuses Milestone 3's chronological split and Milestone 4's cal_fit/
+selection sub-split and calibration methodology unchanged. Trains a
+`HistGradientBoostingClassifier` on the same transparent feature set as
+the logistic baseline (tree-native preprocessing — no scaling, ordinal-
+not one-hot-encoded categoricals — see
+`src/models/train_nonlinear.py`), tunes 4 hyperparameter candidates on
+TRAIN-ONLY time-aware folds, calibrates it with the same sigmoid/
+isotonic out-of-sample methodology, runs the same illustrative cost-based
+decision-policy comparison and sensitivity analysis, computes permutation
+feature importance, and repeats the day_index/week_index ablation for
+this model. Prints a structured comparison to stdout and writes
+`data/interim/milestone5_metrics.json`. See
+[docs/milestone5_nonlinear_comparison.md](docs/milestone5_nonlinear_comparison.md)
+for the full write-up.
+
+## Known limitations (as of Milestone 5)
 
 - Dataset inspection scripts have been run against the actual Kaggle data.
   See `docs/data_profile.md`, `docs/join_validation.md`,
@@ -245,9 +276,45 @@ for the full write-up.
   (Milestone 4 ablation, same doc §8) — suggestive from one split, not
   conclusive, but it reinforces Milestone 3's extrapolation-risk concern
   about these two features with no offsetting benefit found here.
-- No non-linear model (random forest, gradient boosting, etc.) has been
-  tried — Milestones 3–4 were scoped to an interpretable linear baseline
-  only, by explicit instruction.
+- **Milestone 5 added one nonlinear model (`HistGradientBoostingClassifier`)
+  and compared it fairly against the logistic baseline** — same
+  transparent feature set, split, calibration methodology, and cost
+  framework. It clearly outranks the logistic baseline on this dataset
+  (calibrated ROC-AUC 0.79 vs. 0.75, PR-AUC 0.20 vs. 0.13 on `selection`)
+  and, under the same illustrative cost assumptions, its own
+  selection-chosen decision policy roughly doubles fraud recall at a
+  15-18% lower illustrative total cost than the logistic model's own
+  policy — at the cost of materially more false positives. No random
+  forest, XGBoost, or LightGBM comparison has been run — only
+  `HistGradientBoostingClassifier`, per the explicit preference order
+  given for this milestone. See
+  [docs/milestone5_nonlinear_comparison.md](docs/milestone5_nonlinear_comparison.md).
+- **Feature importance for the nonlinear model is permutation importance
+  only** (`HistGradientBoostingClassifier` has no native
+  `feature_importances_`), computed on the `selection` split, and is
+  explicitly not a causal measure — same caveat the project already
+  applies to logistic coefficients. Top-10 overlap with logistic
+  |coefficient| rankings was zero at the literal feature-name level, but
+  this is a granularity artifact (one-hot level names vs. whole raw
+  columns), not a real disagreement — read at the column level, both
+  models independently surface `ProductCD`, `DeviceType`,
+  `email_domain_match`, and identity/device-missingness signal near the
+  top. See `docs/milestone5_nonlinear_comparison.md` §7.
+- **The `day_index`/`week_index` ablation was repeated for the nonlinear
+  model and found the same qualitative result as Milestone 4's logistic
+  ablation**: excluding them very slightly improved temporal-benchmark
+  ROC-AUC, and both features scored exactly zero permutation importance.
+  The nonlinear model's default preferred configuration excludes them
+  per this evidence (and per explicit instruction), though the
+  Milestone 5 head-to-head comparison against the logistic baseline above
+  uses the full feature set, to stay apples-to-apples with that
+  already-established baseline specifically.
+- **Still no production deployment threshold or production model has
+  been chosen** — Milestone 5 is a comparison exercise, not a selection
+  decision. A likely next milestone is picking one specific model and one
+  specific threshold pair as an actual proposed policy, plus a
+  monitoring/drift-detection layer — neither attempted in any milestone so
+  far.
 
 ## License / provenance note
 
