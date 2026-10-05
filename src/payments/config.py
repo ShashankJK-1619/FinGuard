@@ -17,6 +17,7 @@ from src.data.config import PROJECT_ROOT
 
 DEFAULT_SYNTHETIC_ASSUMPTIONS_FILE = PROJECT_ROOT / "configs" / "payments_synthetic_assumptions.json"
 DEFAULT_GUARDRAIL_RULES_FILE = PROJECT_ROOT / "configs" / "payments_guardrail_rules.json"
+DEFAULT_EXPERIMENT_ASSUMPTIONS_FILE = PROJECT_ROOT / "configs" / "payments_experiment_assumptions.json"
 
 
 class PaymentsConfigError(ValueError):
@@ -100,4 +101,97 @@ def load_guardrail_rules(config_file: Path = DEFAULT_GUARDRAIL_RULES_FILE) -> Gu
     return GuardrailRules(
         velocity_attempt_threshold=int(cfg["velocity_attempt_threshold"]),
         high_amount_percentile=float(cfg["high_amount_percentile"]),
+    )
+
+
+@dataclass(frozen=True)
+class ExperimentAssumptions:
+    """Module A, Milestone 2. See docs/moduleA_milestone2_experimentation.md
+    for what each field means and why it's illustrative — none of these
+    numbers are a measured or claimed real-world effect size; they are
+    modeling choices that make the statistical-analysis code below have
+    something non-trivial to analyze (Sec E)."""
+
+    experiment_seed: int
+    # Target fraction of sessions assigned to the treatment arm.
+    treatment_allocation_fraction: float
+    # Minimum attempt_count for a session to be "retry eligible" — the
+    # synthetic treatment-response mechanism (Sec E) only ever acts on
+    # sessions that actually went through at least one retry.
+    eligible_min_attempt_count: int
+    # P(an eligible, treatment-arm, synthetic-abandonment session's
+    # experiment-observed outcome flips from 'abandoned' to 'authorized').
+    recovery_uplift_prob: float
+    alpha: float
+    target_power: float
+    # Minimum absolute uplift in the primary metric to count as
+    # "practically significant" for the ship/no-ship decision rule (Sec H).
+    min_practical_uplift_abs: float
+    # Per-arm sample sizes used to illustrate how MDE shrinks with sample
+    # size (Sec G) — not a claim about the actual dataset's size.
+    mde_reference_sample_sizes: tuple[int, ...]
+    # Guardrail decision-rule tolerances (Sec H): max allowed ABSOLUTE
+    # increase (treatment - control) before a guardrail is considered
+    # breached. All four guardrails here are "higher = worse".
+    fraud_rate_guardrail_tolerance_abs: float
+    fraudulent_completed_rate_guardrail_tolerance_abs: float
+    legitimate_decline_proxy_guardrail_tolerance_abs: float
+    excessive_retry_rate_guardrail_tolerance_abs: float
+    # A session counts toward "excessive retry rate" if attempt_count
+    # exceeds this.
+    excessive_retry_attempt_threshold: int
+
+    def __post_init__(self) -> None:
+        if not (0 < self.treatment_allocation_fraction < 1):
+            raise PaymentsConfigError(
+                f"treatment_allocation_fraction must be in (0, 1); got {self.treatment_allocation_fraction}"
+            )
+        if self.eligible_min_attempt_count < 2:
+            raise PaymentsConfigError(
+                f"eligible_min_attempt_count must be >= 2 (a retry-experience treatment cannot affect a "
+                f"session with no retry); got {self.eligible_min_attempt_count}"
+            )
+        if not (0 <= self.recovery_uplift_prob <= 1):
+            raise PaymentsConfigError(f"recovery_uplift_prob must be in [0, 1]; got {self.recovery_uplift_prob}")
+        if not (0 < self.alpha < 1):
+            raise PaymentsConfigError(f"alpha must be in (0, 1); got {self.alpha}")
+        if not (0 < self.target_power < 1):
+            raise PaymentsConfigError(f"target_power must be in (0, 1); got {self.target_power}")
+        if not (0 <= self.min_practical_uplift_abs <= 1):
+            raise PaymentsConfigError(
+                f"min_practical_uplift_abs must be in [0, 1]; got {self.min_practical_uplift_abs}"
+            )
+        if not self.mde_reference_sample_sizes or any(n <= 0 for n in self.mde_reference_sample_sizes):
+            raise PaymentsConfigError("mde_reference_sample_sizes must be a non-empty list of positive integers")
+        for name, tolerance in (
+            ("fraud_rate_guardrail_tolerance_abs", self.fraud_rate_guardrail_tolerance_abs),
+            ("fraudulent_completed_rate_guardrail_tolerance_abs", self.fraudulent_completed_rate_guardrail_tolerance_abs),
+            ("legitimate_decline_proxy_guardrail_tolerance_abs", self.legitimate_decline_proxy_guardrail_tolerance_abs),
+            ("excessive_retry_rate_guardrail_tolerance_abs", self.excessive_retry_rate_guardrail_tolerance_abs),
+        ):
+            if tolerance < 0:
+                raise PaymentsConfigError(f"{name} must be >= 0; got {tolerance}")
+        if self.excessive_retry_attempt_threshold < 1:
+            raise PaymentsConfigError(
+                f"excessive_retry_attempt_threshold must be >= 1; got {self.excessive_retry_attempt_threshold}"
+            )
+
+
+def load_experiment_assumptions(config_file: Path = DEFAULT_EXPERIMENT_ASSUMPTIONS_FILE) -> ExperimentAssumptions:
+    with open(config_file) as f:
+        cfg = json.load(f)
+    return ExperimentAssumptions(
+        experiment_seed=int(cfg["experiment_seed"]),
+        treatment_allocation_fraction=float(cfg["treatment_allocation_fraction"]),
+        eligible_min_attempt_count=int(cfg["eligible_min_attempt_count"]),
+        recovery_uplift_prob=float(cfg["recovery_uplift_prob"]),
+        alpha=float(cfg["alpha"]),
+        target_power=float(cfg["target_power"]),
+        min_practical_uplift_abs=float(cfg["min_practical_uplift_abs"]),
+        mde_reference_sample_sizes=tuple(int(n) for n in cfg["mde_reference_sample_sizes"]),
+        fraud_rate_guardrail_tolerance_abs=float(cfg["fraud_rate_guardrail_tolerance_abs"]),
+        fraudulent_completed_rate_guardrail_tolerance_abs=float(cfg["fraudulent_completed_rate_guardrail_tolerance_abs"]),
+        legitimate_decline_proxy_guardrail_tolerance_abs=float(cfg["legitimate_decline_proxy_guardrail_tolerance_abs"]),
+        excessive_retry_rate_guardrail_tolerance_abs=float(cfg["excessive_retry_rate_guardrail_tolerance_abs"]),
+        excessive_retry_attempt_threshold=int(cfg["excessive_retry_attempt_threshold"]),
     )

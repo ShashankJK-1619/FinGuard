@@ -1,0 +1,16 @@
+{
+  "_disclaimer": "HYPOTHETICAL, illustrative synthetic-experiment assumptions for Module A, Milestone 2. recovery_uplift_prob is a MODELING CHOICE used to generate a modest, analyzable synthetic treatment effect for this milestone's statistical-analysis code -- it is NOT a measured, observed, or claimed real-world effect size, and no real experiment occurred. The guardrail tolerances and min_practical_uplift_abs are illustrative decision-rule thresholds for demonstrating ship/no-ship logic, not validated business-risk limits. See docs/moduleA_milestone2_experimentation.md.",
+  "experiment_seed": 20261005,
+  "treatment_allocation_fraction": 0.5,
+  "eligible_min_attempt_count": 2,
+  "recovery_uplift_prob": 0.10,
+  "alpha": 0.05,
+  "target_power": 0.8,
+  "min_practical_uplift_abs": 0.01,
+  "mde_reference_sample_sizes": [1000, 5000, 20000, 50000, 100000, 300000],
+  "fraud_rate_guardrail_tolerance_abs": 0.002,
+  "fraudulent_completed_rate_guardrail_tolerance_abs": 0.002,
+  "legitimate_decline_proxy_guardrail_tolerance_abs": 0.005,
+  "excessive_retry_rate_guardrail_tolerance_abs": 0.01,
+  "excessive_retry_attempt_threshold": 3
+}

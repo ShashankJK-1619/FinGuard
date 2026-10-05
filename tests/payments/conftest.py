@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.payments.config import SyntheticAssumptions
+from src.payments.config import ExperimentAssumptions, SyntheticAssumptions
 
 
 def _toy_real_transactions(n: int = 300, seed: int = 0) -> pd.DataFrame:
@@ -75,4 +75,23 @@ def toy_assumptions() -> SyntheticAssumptions:
         session_lead_time_seconds_max=120.0,
         retry_gap_seconds_min=5.0,
         retry_gap_seconds_max=600.0,
+    )
+
+
+@pytest.fixture
+def toy_experiment_assumptions() -> ExperimentAssumptions:
+    return ExperimentAssumptions(
+        experiment_seed=99,
+        treatment_allocation_fraction=0.5,
+        eligible_min_attempt_count=2,
+        recovery_uplift_prob=0.5,  # large & easy-to-detect for fast, deterministic unit tests
+        alpha=0.05,
+        target_power=0.8,
+        min_practical_uplift_abs=0.01,
+        mde_reference_sample_sizes=(100, 1000, 10000),
+        fraud_rate_guardrail_tolerance_abs=0.01,
+        fraudulent_completed_rate_guardrail_tolerance_abs=0.01,
+        legitimate_decline_proxy_guardrail_tolerance_abs=0.01,
+        excessive_retry_rate_guardrail_tolerance_abs=0.01,
+        excessive_retry_attempt_threshold=3,
     )

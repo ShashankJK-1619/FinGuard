@@ -59,3 +59,39 @@ ATTEMPT_COLUMNS = [
 
 ATTEMPT_OUTCOME_DECLINED = "declined"
 ATTEMPT_OUTCOME_AUTHORIZED = "authorized"
+
+# --- Module A, Milestone 2: experimentation column/label constants ---
+# See docs/moduleA_milestone2_experimentation.md for the full design. These
+# columns are added ON TOP OF `payment_sessions` by the experiment layer
+# (src.payments.experiment_assignment / experiment_effects) — they never
+# exist in the Milestone 1 `payment_sessions` table itself, so the
+# baseline-vs-experiment boundary is visible in the schema, not just prose.
+ASSIGNMENT_COL = "assignment"
+ASSIGNMENT_CONTROL = "control"
+ASSIGNMENT_TREATMENT = "treatment"
+
+# True iff attempt_count >= the configured eligibility threshold (Sec E) —
+# i.e. the session actually went through at least one retry, so a
+# retry-experience treatment could plausibly have affected it at all.
+RETRY_ELIGIBLE_COL = "retry_eligible"
+
+# True iff this specific session's outcome was changed by the synthetic
+# treatment-response mechanism (Sec E). Always False for control sessions
+# and for any real-linked session (real transaction history is never
+# altered).
+TREATMENT_EFFECT_APPLIED_COL = "treatment_effect_applied"
+
+# The outcome the experiment's metrics are computed on: equal to the
+# Milestone 1 `final_outcome` everywhere EXCEPT the sessions where
+# `treatment_effect_applied` is True, where it is 'authorized' instead of
+# 'abandoned'. Keeping this as a separate column (rather than overwriting
+# `final_outcome`) preserves the Milestone 1 baseline table unchanged and
+# auditable.
+EXPERIMENT_OUTCOME_COL = "experiment_final_outcome"
+
+EXPERIMENT_SESSION_COLUMNS = SESSION_COLUMNS + [
+    ASSIGNMENT_COL,
+    RETRY_ELIGIBLE_COL,
+    TREATMENT_EFFECT_APPLIED_COL,
+    EXPERIMENT_OUTCOME_COL,
+]

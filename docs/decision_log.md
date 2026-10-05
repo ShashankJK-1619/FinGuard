@@ -446,3 +446,100 @@ comparison and cost-sensitivity numbers should no longer be cited.**
   `main()` itself is not directly unit-tested and all touched function
   signatures (`time_feature_ablation_nonlinear`,
   `decision_policy_comparison`, etc.) kept their existing contracts).
+
+## 2026-10-05 — Module A, Milestone 2: payments experimentation & product decisioning
+
+This is the first Module A entry in this log — Module A Milestone 1's
+design decisions (donor-cloned abandonment profiles, KPI/funnel
+definitions, rule-based guardrails) are recorded directly in
+`docs/payments_data_model.md` rather than retroactively duplicated here.
+This entry covers Milestone 2 only.
+
+- **Randomization unit: session, not customer.** IEEE-CIS (and this
+  project's existing Module A field inventory, `docs/payments_data_model.md`
+  §2a) provides no real, documented customer identifier.
+  `card4`/`card6`/email-domain fields are explicitly opaque, undocumented
+  categorical keys per Module B's own data dictionary — building a
+  customer proxy out of them (e.g. hashing `card4+card6+P_emaildomain`)
+  was rejected as fabricating an identity concept this dataset cannot
+  actually support, and risking an unaudited rate of hash
+  collisions/misses. Session-level randomization was used instead, with
+  the resulting contamination risk (the same real person's multiple
+  sessions landing in different arms) stated as an explicit, unmeasurable
+  limitation rather than hidden. See
+  `docs/moduleA_milestone2_experimentation.md` §2.
+- **Assignment and treatment-effect draws use deterministic SHA-256
+  hashing of `(salt, experiment_seed, session_id)`, not `numpy.random.Generator`.**
+  This makes assignment a pure function of `session_id` alone — reorder-
+  stable, rerun-stable, and trivially auditable — and avoids the
+  row-order sensitivity a stateful RNG would introduce if iterated over a
+  DataFrame. Two different salts (`ASSIGNMENT_SALT`, `EFFECT_SALT`) keep
+  the assignment draw and the treatment-response draw statistically
+  independent despite sharing the same `session_id` and `experiment_seed`.
+- **Synthetic treatment-effect mechanism scope, deliberately narrow**:
+  only flips `is_synthetic_abandonment` sessions (never real transaction
+  history, in either arm) from `abandoned` to `authorized`, only in the
+  treatment arm, only when `attempt_count >= eligible_min_attempt_count`,
+  only via an independent Bernoulli draw at `recovery_uplift_prob`. This
+  was chosen so the mechanism is easy to audit end-to-end and so its
+  predicted downstream effects (movement in `retry_recovery_rate` and
+  `attempts_per_completed_session`, no movement in
+  `first_attempt_authorization_rate`, `retry_rate`, or any guardrail
+  metric) are mechanically derivable in advance, not just empirically
+  observed after the fact. `payment_attempts` rows are deliberately NOT
+  mutated when a session's outcome flips — a stated simplification, not
+  an oversight.
+- **`recovery_uplift_prob` (0.10) and all guardrail tolerances /
+  `min_practical_uplift_abs` (0.01) in
+  `configs/payments_experiment_assumptions.json` were fixed BEFORE
+  running `src.payments.build_experiment_report` against the real IEEE-
+  CIS data, and were not adjusted afterward.** The real-data run's
+  `no-ship` result (uplift below the practical threshold, not a
+  guardrail breach) is reported as obtained, per the explicit instruction
+  not to tune treatment assumptions post-hoc to force significance.
+- **`legitimate_decline_proxy_rate` defined as a proxy, not a model
+  FPR**: share of real-linked, non-fraudulent sessions with at least one
+  `decline_reason_code == 'risk_block'` attempt. Documented as expected
+  to show no real between-arm signal, since `decline_reason_code` is
+  sampled independently of `isFraud` in Milestone 1's generator — mirrors
+  the "methodological artifact" callout style already established for
+  Milestone 1's `velocity_flag` backtest.
+- **Segment heterogeneity restricted to 4 pre-specified dimensions**
+  (`DeviceType`, `ProductCD`, `card6`, `retry_eligible`), enforced by an
+  allow-list that raises `ExperimentSegmentError` on any other column —
+  deliberately not an open-ended slicing tool. No multiple-comparison
+  correction is applied; this is recorded as an accepted limitation
+  specific to this small, pre-registered set, not a general license to
+  skip correction when slicing more broadly later.
+- **SRM implemented as a one-sample `proportions_ztest`** (observed
+  treatment count vs. expected fraction) rather than importing a
+  separate chi-square goodness-of-fit routine, to avoid adding a new
+  explicit dependency beyond the already-used `statsmodels`.
+- **Real-data run result** (`.venv/bin/python -m src.payments.build_experiment_report`,
+  679,121 sessions, `experiment_seed=20261005`): crossover check clean
+  (679,121 unique session IDs, no duplicates); SRM check did not flag
+  (observed treatment fraction 0.5009 vs. expected 0.5, p=0.149);
+  pre-treatment covariate balance close across arms. Primary metric:
+  control completion rate 0.8692 (294,644/338,966), treatment 0.8763
+  (298,083/340,155), absolute uplift +0.0071 (relative +0.81%), 95% CI
+  [0.0055, 0.0087], p ≈ 2.2e-18 — statistically significant and positive.
+  All 4 guardrail metrics within configured tolerance (largest observed
+  absolute diff 0.0015, on `legitimate_decline_proxy_rate`, tolerance
+  0.005). **Decision: no-ship** — the only failing condition was
+  `practical_uplift_clears_threshold` (0.0071 < 0.01), a direct,
+  real-data illustration of statistical significance without practical
+  significance. Segment heterogeneity broadly echoed the primary result
+  across `DeviceType`/`ProductCD`/`card6` values (uplift ≈ 0.005-0.012,
+  mostly significant given large per-segment n), and — consistent with
+  the treatment mechanism's design (§ above) — the effect concentrated
+  almost entirely in `retry_eligible = True` sessions (uplift +0.0214,
+  p ≈ 5.7e-38) versus `retry_eligible = False` sessions (uplift
+  +0.0004, not significant), exactly as the mechanism predicts since it
+  can only ever act on retry-eligible sessions.
+- Full pytest suite after this milestone: 181 passed, 1 skipped (109
+  Module B tests, unchanged, + 72 Module A tests in `tests/payments/` —
+  34 carried forward from Milestone 1 plus 38 new Milestone 2 tests
+  across `tests/payments/test_experiment_assignment.py`,
+  `test_experiment_effects.py`, `test_experiment_diagnostics.py`,
+  `test_experiment_analytics.py`, and additions to `test_config.py`;
+  same pre-existing skip carried unchanged from Module B).
