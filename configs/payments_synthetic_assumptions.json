@@ -1,0 +1,18 @@
+{
+  "_disclaimer": "HYPOTHETICAL, illustrative portfolio assumptions chosen by the author for Module A Milestone 1 of this learning project. These numbers do NOT represent any real payment processor, bank, or employer's actual abandonment rate, retry behavior, or decline-reason distribution. They exist only so src/payments/generate_sessions.py has concrete, documented parameters to sample from. See docs/payments_data_model.md for the full methodology and caveats. Change them freely; nothing in this repository treats them as real payments-industry figures.",
+  "random_seed": 20261002,
+  "abandonment_rate": 0.15,
+  "decline_before_success_probs": [0.70, 0.18, 0.08, 0.03, 0.01],
+  "abandonment_attempt_count_probs": [0.5, 0.3, 0.15, 0.05],
+  "decline_reason_weights": {
+    "insufficient_funds": 0.35,
+    "risk_block": 0.25,
+    "issuer_timeout": 0.15,
+    "invalid_card_details": 0.15,
+    "other": 0.10
+  },
+  "session_lead_time_seconds_min": 1,
+  "session_lead_time_seconds_max": 120,
+  "retry_gap_seconds_min": 5,
+  "retry_gap_seconds_max": 600
+}

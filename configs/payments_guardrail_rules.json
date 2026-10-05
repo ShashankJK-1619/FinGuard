@@ -1,0 +1,5 @@
+{
+  "_disclaimer": "HYPOTHETICAL, illustrative rule thresholds chosen by the author for Module A Milestone 1's rule-based fraud guardrails (src/payments/guardrails.py). These are fixed business rules, NOT a fitted/trained model, and the thresholds are not tuned to any real loss function. See docs/payments_data_model.md Section 9.",
+  "velocity_attempt_threshold": 3,
+  "high_amount_percentile": 0.95
+}
