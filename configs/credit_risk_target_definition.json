@@ -1,0 +1,7 @@
+{
+  "_disclaimer": "ILLUSTRATIVE, PROVISIONAL target-definition assumptions for Module C, Milestone 1. No credit-risk dataset has been downloaded yet (see docs/credit_risk_dataset_comparison.md) -- outcome_window_months is a planning choice, not a value fit to real data. default_event_statuses/delinquency_event_statuses reflect the recommended candidate dataset's (LendingClub accepted-loans) publicly documented loan_status vocabulary from secondary sources, and MUST be verified against the actual raw file's data dictionary before any real computation is run on it in a later milestone. See docs/credit_risk_target_definition.md for the full default/delinquency/censoring rationale.",
+  "outcome_window_months": 12,
+  "default_event_statuses": ["Charged Off", "Default"],
+  "delinquency_event_statuses": ["In Grace Period", "Late (16-30 days)", "Late (31-120 days)"],
+  "minimum_followup_days_tolerance": 0
+}

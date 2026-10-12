@@ -543,3 +543,115 @@ This entry covers Milestone 2 only.
   `test_experiment_effects.py`, `test_experiment_diagnostics.py`,
   `test_experiment_analytics.py`, and additions to `test_config.py`;
   same pre-existing skip carried unchanged from Module B).
+
+## 2026-10-12 — Module C Milestone 1: credit-risk data model & target-definition foundation
+
+- **No dataset downloaded, no model trained.** This milestone is schema
+  and logic design only, validated against toy fixtures in
+  `tests/credit_risk/`. Full reasoning in `docs/credit_risk_data_model.md`,
+  `docs/credit_risk_dataset_comparison.md`,
+  `docs/credit_risk_target_definition.md`, and the consolidated summary
+  `docs/moduleC_milestone1_credit_risk_foundation.md`.
+- **Dataset recommendation: LendingClub accepted-loans data**, chosen
+  over Freddie Mac's Single-Family Loan-Level Dataset (SFLLD — strongest
+  alternative, structurally cleaner point-in-time separation via
+  separate origination/monthly-performance tables, but mortgage-specific,
+  narrower feature set, and registration-gated) and Home Credit Default
+  Risk (pre-baked `TARGET` label with no raw status timeline to derive
+  censoring logic from, plus a documented history of subtle feature
+  leakage in public Kaggle analyses). LendingClub's `loan_status`
+  vocabulary maps directly onto this module's default/delinquency
+  severity split, it has the richest documented application-time feature
+  set of the three, and it has the lowest access friction (commonly
+  CC0-licensed mirrors, no account/competition gate).
+- **Censoring, not silent zero-filling, for insufficient follow-up**:
+  `compute_default_12m_labels` codes a loan with no recorded default but
+  also insufficient elapsed follow-up as `label_status =
+  "censored_insufficient_followup"` / `default_12m = NA`, never a
+  confirmed `0`. Reasoning: a loan that simply hasn't had time to default
+  yet is not evidence it will survive the full window; silently coding
+  it `0` would bias label distributions toward recently originated loans
+  and understate risk for the newest vintages for a reason that has
+  nothing to do with their actual creditworthiness.
+- **Inclusive window-boundary convention**: a default event landing
+  exactly on `origination_date + outcome_window_months` counts as
+  "within the window" (`default_12m = 1`), chosen over an exclusive
+  boundary because the window length itself is a planning convention,
+  not a natural law, and an exclusive boundary would arbitrarily reward
+  boundary-case defaults as "survivors."
+- **Delinquency and default modeled as separate severities, never
+  conflated**: `delinquency_event_date` is carried for visibility only
+  and never consulted when setting `default_12m` — a lesser delinquency
+  event must never, by itself, flip the default label. This mirrors the
+  lifecycle distinction in `docs/credit_risk_data_model.md` Section A
+  (delinquency is recoverable; default is the configured
+  severe/terminal state).
+- **`grade`/`sub_grade`/`int_rate` left flagged `"unknown"`, deliberately
+  unresolved**: these fields are technically fixed at-or-before
+  origination (not a timing leak in the literal sense) but are the
+  lender's own prior risk assessment/pricing — using them as
+  independent borrower-fact features risks a model that reproduces
+  LendingClub's existing risk model rather than learning default risk
+  from first principles. Whether to exclude them entirely, include them
+  as an explicit "replicate the lender's pricing policy" baseline, or
+  something in between is deferred as an explicit Milestone 2 decision,
+  not decided here.
+- **Leakage-keyword safety net in `feature_eligibility.py`**: beyond the
+  human-authored `available_at_application` judgment in
+  `configs/credit_risk_feature_eligibility.json`, `FeatureEligibilityEntry`
+  raises `FeatureEligibilityError` if any field name matches a known
+  post-origination leakage pattern (`recover`, `total_pymnt`,
+  `last_pymnt`, `out_prncp`, `charged_off`, `settlement`, `hardship`,
+  `last_fico`, …) while marked `available_at_application = "yes"` — a
+  defense against a future config-editing mistake, not a substitute for
+  the human judgment that produced the table in the first place.
+- Full pytest suite after this milestone: 208 passed, 1 skipped (181
+  prior Module A/B tests unchanged + 27 new Module C tests in
+  `tests/credit_risk/` across `test_schema.py`, `test_config.py`,
+  `test_target_definition.py`, `test_feature_eligibility.py`; same
+  pre-existing skip carried unchanged from Module B).
+
+## 2026-10-12 — Module C Milestone 1: documentation corrections (provenance wording + selection-bias limitation)
+
+Two corrections made to the Milestone 1 docs before commit, per review
+feedback. No code, config, or test changed — documentation only; dataset
+status (not downloaded) and milestone scope are unchanged.
+
+- **Tightened LendingClub provenance wording.** The original wording
+  ("widely mirrored under permissive terms, commonly distributed as
+  CC0/public-domain") risked implying the *current, original* LendingClub
+  download is itself openly available without restriction. Corrected in
+  `docs/credit_risk_dataset_comparison.md` and
+  `docs/moduleC_milestone1_credit_risk_foundation.md` to state precisely:
+  LendingClub does not currently offer unrestricted public download of
+  this historical file from its own platform; this project will use one
+  specific, reproducible public mirror of the 2007-2018 accepted-loans
+  file, and will record that mirror's exact source URL, stated license,
+  and a file checksum **at download time** (Module C Milestone 2) rather
+  than asserting licensing/openness now. No mirror has been selected or
+  downloaded yet.
+- **Added an explicit selection-bias / target-population limitation.**
+  The LendingClub accepted-loans file contains only originated (accepted)
+  loans -- declined applications never appear in it. Documented in a new
+  "Selection bias and target-population limitation" section in
+  `docs/credit_risk_dataset_comparison.md`, in `docs/
+  moduleC_milestone1_credit_risk_foundation.md` Sections 5 and 7, and in
+  `README.md`'s Module C business-problem paragraph and Known
+  Limitations list: the resulting `default_12m` PD model estimates
+  default risk *conditional on having already been approved and
+  originated*, and **must not be presented as a complete approve/decline
+  underwriting model for the full applicant population**. Correcting
+  this would require reject inference against LendingClub's separately
+  published rejected-applications file (a thinner table with no
+  origination/repayment columns, since none exist for a declined
+  application) -- and even then, declined applicants' true repayment
+  outcomes are permanently unobserved, since they were never funded. Any
+  reject-inference technique substitutes a modeling assumption about
+  that unobserved counterfactual for an observed fact; it narrows this
+  bias, it does not eliminate it. This limitation is inherent to any
+  accepted-loans-only credit dataset, not specific to LendingClub, and
+  is left unresolved/out of scope for this milestone -- not committed to
+  any future milestone by default.
+- Full pytest suite re-run after these documentation-only edits: 208
+  passed, 1 skipped (unchanged from Milestone 1's own run, as expected
+  since no code/config/test changed).

@@ -4,11 +4,14 @@ A portfolio-quality FinTech data science project built to learn payments,
 fraud, and credit risk data science from first principles. Every technical
 decision is documented so it can be explained, not just demonstrated.
 
-**Current scope: Module B (Fraud Detection) through Milestone 5, and
-Module A (Payments/Product Analytics) through Milestone 2.** Module C
-(Credit Risk) is planned but not started. Later Module B milestones
-(production threshold/model selection, monitoring) are also not started.
-Module A Milestone 3 (split + baseline model) is not started.
+**Current scope: Module B (Fraud Detection) through Milestone 5, Module A
+(Payments/Product Analytics) through Milestone 2, and Module C (Credit
+Risk) through Milestone 1 (design foundation only — no dataset
+downloaded, no model trained).** Later Module B milestones (production
+threshold/model selection, monitoring) are not started. Module A
+Milestone 3 (split + baseline model) is not started. Module C Milestone
+2 (download LendingClub data, validate schema/target against real
+columns, build the chronological split) is not started.
 
 ## Business problem (for Module B)
 
@@ -32,6 +35,23 @@ real A/B test, and no real company's experiment anywhere in this module;
 see `docs/payments_data_model.md` and
 `docs/moduleA_milestone2_experimentation.md` for exactly what is real
 data vs. invented, and why.
+
+## Business problem (for Module C)
+
+Lenders must decide, at application time, whether to approve a loan and
+on what terms — a decision that can only ever use information available
+*before* origination, and whose outcome (default) is only observable
+much later, with some loans still too new to have a resolved outcome.
+This module builds the data model, dataset recommendation, target
+definition (with explicit censoring for insufficient follow-up), and
+point-in-time feature-eligibility policy a PD (probability-of-default)
+model would be built on — no dataset has been downloaded and no model
+is trained yet. **Note on scope**: the recommended dataset contains only
+originated (accepted) loans, so the PD model this foundation points
+toward will estimate default risk among already-originated loans, not a
+full approve/decline decision across all applicants — see
+[docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md)
+for the full write-up and its three companion docs.
 
 ## Dataset
 
@@ -121,14 +141,39 @@ for the full scenario, design rationale, and limitations, and
 [docs/payments_experiment_metric_dictionary.md](docs/payments_experiment_metric_dictionary.md)
 for the per-metric numerator/denominator/direction/tier dictionary.
 
+## Project status (Module C): design foundation only, no dataset downloaded, no model trained
+
+Module C Milestone 1 designed the lending lifecycle and a 5-table data
+model (`borrowers`, `loan_applications`, `loans`, `scheduled_payments`,
+`actual_payments`; `docs/credit_risk_data_model.md`), evaluated three
+candidate public datasets and recommended LendingClub accepted-loans
+data over Freddie Mac's SFLLD and Home Credit Default Risk
+(`docs/credit_risk_dataset_comparison.md`), and specified a censoring-
+aware `default_12m` target definition plus a point-in-time feature-
+eligibility policy with an automated leakage-keyword safety net
+(`docs/credit_risk_target_definition.md`). **No real credit-risk data
+has been downloaded or read** — every table, config value, and test in
+`src/credit_risk/` / `tests/credit_risk/` is validated only against toy
+fixtures. The recommended LendingClub file will be obtained, when
+Milestone 2 actually downloads it, via one specific, reproducible
+public mirror — not a live open download from LendingClub's own
+platform, which does not currently offer this historical file for
+unrestricted public download — with the exact source URL, license, and
+a file checksum recorded at that time, not asserted now. See
+[docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md)
+for the consolidated summary and recommended next milestone.
+
 ## Repository structure
 
 ```
 configs/          Configuration (paths.json, cost_assumptions.json,
                   payments_synthetic_assumptions.json,
                   payments_guardrail_rules.json,
-                  payments_experiment_assumptions.json) — no hardcoded
-                  paths, cost values, or experiment assumptions in code
+                  payments_experiment_assumptions.json,
+                  credit_risk_target_definition.json,
+                  credit_risk_feature_eligibility.json) — no hardcoded
+                  paths, cost values, or experiment/credit-risk
+                  assumptions in code
 data/raw/         Raw Kaggle CSVs (gitignored, not committed)
 data/interim/     Intermediate artifacts (gitignored)
 data/processed/   baseline_features_v1.parquet (gitignored, not committed)
@@ -136,7 +181,9 @@ docs/             Generated reports + written analysis (data profile, join
                   validation, time structure, data dictionary, leakage
                   review, feature dictionary, milestone 2/3/4/5 design
                   docs, Module A payments data model + Milestone 2
-                  experimentation docs + metric dictionary, decision log)
+                  experimentation docs + metric dictionary, Module C
+                  credit-risk data model + dataset comparison + target
+                  definition + milestone 1 summary docs, decision log)
 notebooks/        Exploratory notebooks (none yet)
 src/data/         Config, DuckDB loaders, inspection/validation scripts
 src/features/     Point-in-time-safe feature functions + baseline dataset builder
@@ -152,8 +199,15 @@ src/payments/     Module A: synthetic session/attempt generator, KPI/
                   treatment effects/stats/power/guardrails/segments/
                   diagnostics (Milestone 2) — all DuckDB-SQL-first,
                   config-driven, no fitted models
+src/credit_risk/  Module C: logical schema constants, target-definition
+                  config + censoring-aware default_12m logic, and
+                  point-in-time feature-eligibility rule engine
+                  (schema.py, config.py, target_definition.py,
+                  feature_eligibility.py) — design/logic only, no real
+                  dataset read, no model
 tests/            pytest suite (incl. tests/features/ and tests/models/
-                  leakage-safety tests, and tests/payments/ for Module A)
+                  leakage-safety tests, tests/payments/ for Module A,
+                  and tests/credit_risk/ for Module C)
 ```
 
 ## Environment setup
@@ -305,7 +359,7 @@ for the full write-up and
 [docs/payments_experiment_metric_dictionary.md](docs/payments_experiment_metric_dictionary.md)
 for the metric dictionary.
 
-## Known limitations (as of Module B Milestone 5 / Module A Milestone 2)
+## Known limitations (as of Module B Milestone 5 / Module A Milestone 2 / Module C Milestone 1)
 
 - Dataset inspection scripts have been run against the actual Kaggle data.
   See `docs/data_profile.md`, `docs/join_validation.md`,
@@ -445,6 +499,50 @@ for the metric dictionary.
   2's segment heterogeneity table** (4 pre-registered dimensions only,
   not an open-ended search) — individual segment-level p-values should
   not be read as independently confirmed discoveries.
+- **Module C Milestone 1 has not downloaded or read any real
+  credit-risk dataset.** The 5-table schema, the recommended LendingClub
+  dataset's assumed `loan_status` vocabulary
+  (`configs/credit_risk_target_definition.json`), and the ~29-field
+  point-in-time feature-eligibility classification
+  (`configs/credit_risk_feature_eligibility.json`) are all based on
+  secondary-source documentation, not the actual raw file's own data
+  dictionary — both configs' `_disclaimer` fields say this explicitly,
+  and re-verification against the real file is required before any
+  feature is used to fit a model.
+- **Module C's `grade`/`sub_grade`/`int_rate` circularity question is
+  flagged, not resolved.** These fields are technically fixed
+  at-or-before loan origination (not a timing leak) but are the
+  lender's own prior risk assessment/pricing; whether to exclude them,
+  include them as an explicit baseline, or something in between is
+  deferred to Module C Milestone 2. See
+  [docs/credit_risk_data_model.md](docs/credit_risk_data_model.md) and
+  [docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md).
+- **No amortization-schedule generator exists yet** for Module C's
+  `scheduled_payments` table — it is documented as fully derivable from
+  origination terms, but deriving it is explicit Module C Milestone 2
+  scope, not implemented here.
+- **Module C's recommended dataset has not been pinned to a specific
+  downloadable file.** LendingClub does not currently offer unrestricted
+  public download of this historical file from its own platform; it
+  will be obtained via one specific, reproducible public mirror whose
+  exact source URL, license, and file checksum are recorded only once
+  actually downloaded (Module C Milestone 2) — no claim is made that the
+  original LendingClub release is itself currently open-access, and no
+  mirror has been selected yet.
+- **Module C's recommended dataset contains only originated (accepted)
+  loans — this is a selection-bias / target-population limitation, not
+  yet addressed.** Any PD model built on it estimates default risk
+  *among loans that were already approved and funded*, not across the
+  full applicant population, and **must not be presented as a complete
+  approve/decline underwriting model**. Correcting for this would
+  require reject inference against LendingClub's separately published
+  rejected-applications file (a much thinner table with no
+  origination/repayment columns), and even then, declined applicants'
+  true repayment outcomes are permanently unobserved since they were
+  never funded. See `docs/credit_risk_dataset_comparison.md`,
+  "Selection bias and target-population limitation," and
+  [docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md)
+  §7.
 - **Module A Milestone 3 (split + baseline model) has not been started.**
 
 ## License / provenance note
