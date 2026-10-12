@@ -1,0 +1,14 @@
+{
+  "_disclaimer": "Module C, Milestone 2 target-governance correction -- PRIMARY split, for the primary modeling target `terminal_adverse_outcome` (see configs/credit_risk_target_governance.json). This split could NOT reuse the secondary proxy split's boundaries (configs/credit_risk_split_design_secondary_proxy.json): terminal resolution depends on each loan's own 36- or 60-month maturity, not a fixed 12-month window, so the proxy split's benchmark year (2017) is 100% censored under this target, and 2015-2016 are 33-75% censored (see docs/moduleC_milestone2_real_data_validation.md Section E-revised / docs/credit_risk_split_design.md for the full empirical censoring-by-origination-year table under this target). outcome_window_months is set to 60 -- the real empirical maximum of LendingClub's `term` column (confirmed values: 36 and 60 only) -- so SplitDesign.__post_init__'s existing 'benchmark_end + outcome_window_months <= data_as_of_date' validation rule structurally guarantees every benchmark-bucket loan has had enough time to reach its own maturity, generalizing the same validation machinery used for the secondary 12-month target without any code change. As with the secondary split, the entire under-resolved tail (2014 onward) is excluded wholesale rather than partially included, per the project rule 'do not touch later periods merely to optimize performance.'",
+  "data_as_of_date": "2019-04-01",
+  "outcome_window_months": 60,
+  "train_start": "2007-06-01",
+  "train_end": "2011-12-31",
+  "validation_start": "2012-01-01",
+  "validation_end": "2012-12-31",
+  "benchmark_start": "2013-01-01",
+  "benchmark_end": "2013-12-31",
+  "excluded_too_recent_start": "2014-01-01",
+  "target_column": "terminal_adverse_outcome",
+  "label_status_column": "label_status_terminal_adverse_outcome"
+}

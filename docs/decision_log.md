@@ -655,3 +655,217 @@ status (not downloaded) and milestone scope are unchanged.
 - Full pytest suite re-run after these documentation-only edits: 208
   passed, 1 skipped (unchanged from Milestone 1's own run, as expected
   since no code/config/test changed).
+
+## 2026-10-12 — Module C Milestone 2: real LendingClub data validation, target construction & chronological split
+
+- **Mirror selected and downloaded**: DePaul University course-data
+  mirror (`bigblue.depaul.edu/jlee141/econdata/LendingClub_LoanData/`),
+  `LendingClub_2007_to_2018Q4.csv`, 1,675,133,810 bytes, SHA256
+  `3eae03c28fd9d2e8a076ebeb73507e8d4d0f44d90500decdb0936e0933d1f36a`
+  (`configs/credit_risk_raw_source_metadata.json`,
+  `src/credit_risk/raw_source.py`). No account/API key required.
+  **License wording kept deliberately cautious**: this mirror shows no
+  explicit license statement of its own, only an origin citation to a
+  Dropbox folder; a separate Kaggle listing of apparently the same data
+  shows a "CC0: Public Domain" tag, but that tag is Kaggle's own claim
+  about its own hosted copy and is explicitly NOT treated as inherited
+  by this mirror or attributed to LendingClub itself.
+  `RawSourceMetadata.__post_init__` raises if
+  `license_statement_is_from_original_publisher=True` is ever set
+  without an accompanying human-reviewed doc update -- there is
+  currently no case where this repo has found a mirror making that
+  claim.
+- **Footer-row contamination found and fixed via a rejected-first-
+  attempt discipline**: the real file has 33 non-loan footer/
+  section-marker text rows (e.g. "Total amount funded in policy code 1:
+  ..."). The first fix attempted, DuckDB's `ignore_errors=true` with
+  sampled type inference, was tried and REJECTED after testing showed
+  it silently nulled out real columns on unrelated rows whenever its
+  type-sniffing sample missed a rarer value elsewhere in the 1.6GB file
+  -- a worse outcome than the 33 known rows it was meant to fix.
+  Replaced with `all_varchar=true` (no reader-level casting at all) plus
+  an explicit `WHERE regexp_matches(id, '^[0-9]+$')` filter in
+  `src/credit_risk/raw_loader.py::register_loans_view`, which isolates
+  exactly the 33 bad rows with no collateral risk. Verified independently
+  via Python's own quote-aware `csv` module that the underlying file is
+  not malformed CSV (every one of 2,260,701 raw data rows has exactly
+  151 fields) -- the issue was purely DuckDB's type-sniffing on this
+  specific file, not the CSV structure itself.
+- **Confirmed empirically: the real file has no genuine default/
+  charge-off event-date column.** Per the explicit project rule against
+  fabricating event dates, two distinct, separately-named,
+  never-conflated targets were built instead of one
+  (`src/credit_risk/target_construction.py`):
+  `default_terminal_status` (maturity-date-based, no event date
+  required, variable 36/60-month horizon) and
+  `default_12m_last_pymnt_proxy` (reuses Milestone 1's unmodified
+  `compute_default_12m_labels`, fed a proxy event date --
+  `last_pymnt_d`, falling back to `issue_d` for the zero-payment
+  charge-off edge case). The proxy's bias direction is documented and
+  one-directional: LendingClub's real charge-off policy lags
+  `last_pymnt_d` by 120+ days, so the proxy can only pull borderline
+  defaults INTO the 12-month window, never push them out. Neither
+  target is ever presented as, or merged with, the other.
+  `INFERRED_DATA_AS_OF_DATE = 2019-04-01` is derived from the maximum
+  observed `last_credit_pull_d` across the file, stated as an inferred
+  proxy for the snapshot date, not an asserted fact from the source.
+- **Real `loan_status` vocabulary (9 values) mapped explicitly**,
+  replacing Milestone 1's secondary-source guess
+  (`configs/credit_risk_status_mapping.json`,
+  `src/credit_risk/status_mapping.py`). The two "Does not meet the
+  credit policy." statuses are mapped to the SAME outcome category as
+  their unprefixed counterpart, with policy vintage tracked separately
+  via `meets_credit_policy` -- never conflated with outcome severity.
+  `default_event_statuses` was updated to include "Does not meet the
+  credit policy. Status:Charged Off" (a real charge-off) alongside
+  "Charged Off"/"Default"; "Late (31-120 days)" remains deliberately
+  excluded from the trigger set despite sharing a category with
+  "Default", since it is a recoverable, not-yet-terminal severity state.
+- **Leakage audit rebuilt for all 151 real columns**, replacing
+  Milestone 1's ~29-entry provisional guess
+  (`configs/credit_risk_feature_eligibility.json`): 108 safe / 39
+  excluded / 4 unresolved (`grade`, `sub_grade`, `int_rate`, and
+  `member_id`, which is present but carries no information in the real
+  file). `chargeoff_within_12_mths` was specifically verified safe
+  despite its outcome-sounding name -- it describes OTHER accounts'
+  bureau history at the application-time credit pull, not this loan's
+  own outcome, demonstrating name-pattern-matching alone is not a
+  sufficient leakage test.
+- **Bug found and self-corrected before presenting results**:
+  informational/clarifying notes on several "yes"-classified
+  bureau-pull entries had been placed in `leakage_concern` rather than
+  `proposed_use`, which made `filter_application_time_safe()` undercount
+  safe features (37 instead of 108) since any non-empty
+  `leakage_concern` disqualifies an entry regardless of content. Fixed
+  by moving all such notes into `proposed_use`; the Milestone 1
+  leakage-keyword safety net in `FeatureEligibilityEntry.__post_init__`
+  was unaffected and did not need to change.
+- **Chronological split boundaries chosen from the real censoring-by-
+  origination-year table, not an arbitrary guess**
+  (`configs/credit_risk_split_design.json`,
+  `src/credit_risk/chronological_split.py`): origination years
+  2007-2017 are 0% censored for `default_12m_last_pymnt_proxy` under the
+  inferred `data_as_of_date`; only 2018 is censored (68.9%) and is
+  excluded from all three splits WHOLESALE, not partially, to avoid a
+  survivorship distortion a loan-level filter would introduce within
+  that vintage -- directly applying the project rule "do not touch
+  later periods merely to optimize performance." Resulting buckets:
+  train 2007-06/2014-12 (466,345 rows, 5.178% prevalence), validation
+  2015-01/2016-12 (855,502 rows, 6.508%), benchmark 2017 (443,579 rows,
+  6.281%), excluded_too_recent 2018 (495,242 total / 153,917 labeled,
+  5.751% prevalence among labeled). `build_chronological_split` raises
+  if any censored row is ever found inside a labeled train/validation/
+  benchmark bucket -- verified empirically (0 in each), not just
+  asserted by construction.
+- **Empirical edge case found and treated as a positive validation, not
+  a bug**: 10 loans in the 2013 vintage are still
+  Current/Late/In-Grace-Period in the snapshot despite being past their
+  own scheduled maturity date (likely real loan modifications). Per the
+  terminal-target design these stay censored, never coded either way --
+  exactly the behavior
+  `test_terminal_target_past_maturity_but_still_open_is_censored_not_fabricated`
+  asserts.
+- Full pytest suite after this milestone: 249 passed, 1 skipped (207
+  prior tests unchanged + 42 new tests across
+  `tests/credit_risk/test_raw_source.py`, `test_status_mapping.py`,
+  `test_target_construction.py`, `test_chronological_split.py`,
+  `test_raw_loader.py`, `test_real_feature_eligibility.py`; the 1 skip
+  is the pre-existing, unrelated Module B missing-raw-file guard,
+  unchanged by this milestone). The 3 real-data-gated tests in
+  `test_raw_loader.py` run (not skipped) on this machine since the raw
+  file is present and checksum-verified.
+
+## 2026-10-12 — Module C Milestone 2 target-governance correction (pre-commit review)
+
+**Supersedes the target-governance framing in the 2026-10-12 "Module C
+Milestone 2" entry above; that entry is left unedited per the
+append-only convention, but `default_terminal_status`/
+`default_12m_last_pymnt_proxy`'s primary/secondary roles described there
+should no longer be cited -- see this entry instead.** Issued before any
+commit of Milestone 2, in response to an explicit review request, with
+nine numbered requirements; none of Milestone 2's empirical findings
+(real schema, status mapping, censoring tables) changed, only the
+target-governance designation, `member_id`'s classification, and the
+chronological split built from it.
+
+- **Primary/secondary target designation corrected.** The original
+  draft implicitly treated `default_12m_last_pymnt_proxy` as the
+  presumptive primary PD target. That is wrong and is corrected here:
+  the renamed `terminal_adverse_outcome`
+  (`compute_terminal_adverse_outcome_target`, was
+  `default_terminal_status`/`compute_terminal_status_target`) is now the
+  explicit **PRIMARY** modeling target for Milestone 3 -- built only
+  from explicitly mapped resolved terminal `loan_status` categories
+  (`charged_off`, `fully_paid`), requiring no event date. It estimates
+  eventual adverse credit outcome among originated loans over a
+  variable, loan-specific (36- or 60-month) horizon and **does not
+  represent a 12-month probability of default**; this must never be
+  stated otherwise. `default_12m_last_pymnt_proxy` is retained only as a
+  **SECONDARY**, sensitivity-analysis-only target, with its documented
+  one-directional bias preserved unchanged and an explicit restatement
+  that `last_pymnt_d` is NOT a default-event timestamp (it is the date
+  of the loan's most recent received payment, repurposed only as an
+  explicitly-labeled proxy).
+- **New machine-readable governance source of truth**:
+  `configs/credit_risk_target_governance.json`
+  (`src/credit_risk/target_governance.py`, new module). Mirrors the
+  project's existing fail-loud config-validation pattern
+  (`RawSourceMetadata`, `FeatureEligibilityEntry`, `SplitDesign`):
+  `TargetGovernance.__post_init__` raises `TargetGovernanceError` if the
+  primary and secondary target columns are ever the same, if the
+  primary target is ever marked a fixed-horizon PD, if the secondary
+  target's proxy event date is ever marked a genuine timestamp, or if
+  either target's interpretation string is left blank -- a future config
+  edit that contradicts this milestone's governance decision fails
+  loudly rather than being silently accepted.
+- **`member_id` reclassified from `"unknown"` (unresolved) to `"no"`
+  (excluded identifier)**, in `configs/credit_risk_feature_eligibility.json`.
+  It is a pure identifier with no defensible predictive business role
+  and is always 100% NULL in this public release; "unknown" is reserved
+  for genuinely ambiguous-availability fields, which `member_id` is not.
+  Leakage-audit counts move from 108 safe / 39 excluded / 4 unresolved
+  to **108 safe / 40 excluded / 3 unresolved** (the remaining 3
+  unresolved are `grade`/`sub_grade`/`int_rate`, explicitly re-confirmed,
+  not revisited, by this correction).
+- **Chronological split redesigned for the primary target, not reused
+  from the secondary split.** Because `terminal_adverse_outcome`
+  resolves on each loan's own 36-/60-month maturity rather than a fixed
+  12-month window, the original (now secondary) split's boundaries are
+  invalid for it: under `terminal_adverse_outcome`, its benchmark year
+  (2017) is 100% censored and its validation years (2015-2016) are
+  33-75% censored. `SplitDesign.__post_init__`'s existing
+  `benchmark_end + outcome_window_months <= data_as_of_date` validation
+  rule required no code change -- setting `outcome_window_months=60`
+  (the real empirical maximum of LendingClub's `term` column; confirmed
+  distinct values `[36, 60]` only) was sufficient to generalize it
+  correctly. The single `configs/credit_risk_split_design.json` was
+  replaced by two explicit files:
+  `configs/credit_risk_split_design_primary_terminal.json` (new default,
+  loaded by `chronological_split.py`'s `DEFAULT_SPLIT_DESIGN_FILE`: train
+  2007-06/2011-12 -- 42,535 rows, 15.119% prevalence; validation
+  2012 -- 53,367 rows, 16.197%; benchmark 2013 -- 134,814 rows, 10
+  censored, 15.596% of 134,804 labeled; excluded_too_recent 2014+ --
+  2,029,952 total / 572,677 labeled) and
+  `configs/credit_risk_split_design_secondary_proxy.json` (unchanged
+  boundaries/counts from the original entry, now loaded explicitly via
+  `SECONDARY_PROXY_SPLIT_DESIGN_FILE`). As with the original split, the
+  entire under-resolved tail (2014 onward) is excluded wholesale, not
+  partially, per the project rule against touching later periods to
+  optimize performance. The primary split's labeled sample
+  (train+validation+benchmark = 230,716 rows) is substantially smaller
+  than the secondary split's (1,765,426 rows) -- a direct, foreseeable
+  consequence of correctly designating the longer-horizon target as
+  primary, stated here so Milestone 3 is not surprised by it.
+- **Documentation, configs, and tests updated accordingly**: `README.md`,
+  `docs/credit_risk_split_design.md` (restructured into explicit Primary/
+  Secondary sections), `docs/moduleC_milestone2_real_data_validation.md`
+  (Sections D, E, F, G, I, J, K revised), `docs/credit_risk_status_mapping.md`,
+  `configs/credit_risk_feature_eligibility.json`'s two `proposed_use`
+  strings naming the old target, `src/credit_risk/status_mapping.py`'s
+  docstring, `tests/credit_risk/test_target_construction.py` (renamed
+  imports/calls), `tests/credit_risk/test_real_feature_eligibility.py`
+  (`member_id`/excluded-count assertions), `tests/credit_risk/
+  test_chronological_split.py` (added a secondary-split-loads-correctly
+  test), and a new `tests/credit_risk/test_target_governance.py`. No
+  model was trained; no commit or push was made as part of this
+  correction.

@@ -1,0 +1,21 @@
+{
+  "_disclaimer": "Module C, Milestone 2 provenance record for the ACTUAL downloaded raw file. This records what this one mirror itself states/shows at access time. The 'license_statement' field is this mirror's own page content (or explicit absence thereof) -- it is NOT a license grant from LendingClub, the original data publisher, and must never be presented as such. A separate, well-known third-party re-host of the same underlying data (Kaggle, dataset slug 'wordsforthewise/lending-club') displays a 'CC0: Public Domain' tag on its own page; that tag belongs to the Kaggle listing, not to this mirror, and is recorded here only as contextual information, explicitly NOT inherited by this mirror's own, separate access.",
+  "dataset_name": "LendingClub accepted-loans data, 2007-2018Q4",
+  "source_url": "https://bigblue.depaul.edu/jlee141/econdata/LendingClub_LoanData/LendingClub_2007_to_2018Q4.csv",
+  "directory_listing_url": "https://bigblue.depaul.edu/jlee141/econdata/LendingClub_LoanData/",
+  "mirror_provider": "DePaul University course-data mirror (bigblue.depaul.edu, directory page titled 'LendingClub Bank Loan Data Files' / 'LendingClub Loan Data file, 2007-2015')",
+  "mirror_cites_original_source_as": "https://www.dropbox.com/sh/7oslws1xhsm1zbf/AABkdWDKqpdcGmY1NbXAnkrBa?dl=0",
+  "local_filename": "LendingClub_2007_to_2018Q4.csv",
+  "local_path": "data/raw/LendingClub_2007_to_2018Q4.csv",
+  "file_size_bytes": 1675133810,
+  "sha256_checksum": "3eae03c28fd9d2e8a076ebeb73507e8d4d0f44d90500decdb0936e0933d1f36a",
+  "http_content_length_at_download": 1675133810,
+  "http_last_modified_header": "Wed, 18 Dec 2019 05:30:52 GMT",
+  "http_content_type_header": "text/csv",
+  "license_statement": "No explicit license or usage-terms statement is shown anywhere on this mirror's page or directory listing. The page shows only a 'source:' citation linking to a Dropbox shared folder (an origin citation, not a license grant). No authentication, click-through terms, or license acceptance was required to download this file.",
+  "license_statement_is_from_original_publisher": false,
+  "related_third_party_mirror_license_context": "A separate Kaggle listing of apparently the same underlying LendingClub data (dataset slug 'wordsforthewise/lending-club') displays a 'CC0: Public Domain' tag on Kaggle's own page. That tag is Kaggle's own claim about its own hosted copy; it is explicitly NOT applied to this DePaul mirror's separate, independent file in this record, since this mirror makes no license claim of its own and Kaggle's claim cannot be verified to originate from LendingClub itself.",
+  "access_date": "2026-10-12",
+  "download_method": "curl -L -C - --retry 5 --retry-delay 3 --max-time 1800 (resumable background download; no authentication, no account, no API key used)",
+  "download_verification": "Final on-disk file size (1,675,133,810 bytes) matches the HTTP content-length header observed at download time; SHA256 checksum computed locally and recorded above for future reproducibility/integrity checks."
+}

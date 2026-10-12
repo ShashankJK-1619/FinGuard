@@ -1,0 +1,14 @@
+{
+  "_disclaimer": "Module C, Milestone 2 target-governance correction (post-initial-draft, pre-commit review). This is the single machine-readable source of truth for which target is PRIMARY vs SECONDARY for Milestone 3 modeling. See docs/decision_log.md entry 'Milestone 2 target-governance correction' for the full rationale, and src/credit_risk/target_governance.py for the loud validation this config is checked against -- a config edit that contradicts the project's governance rules (e.g. marking the primary target as a fixed-horizon PD, or claiming last_pymnt_d is a genuine event timestamp) raises TargetGovernanceError rather than being silently accepted.",
+  "primary_target_column": "terminal_adverse_outcome",
+  "primary_label_status_column": "label_status_terminal_adverse_outcome",
+  "primary_target_interpretation": "Estimates eventual adverse credit outcome (charge-off vs. fully-paid) among originated loans, resolved only once each loan has passed its own scheduled maturity date (36 or 60 months after origination, per LendingClub's real term distribution). This target does NOT represent a 12-month probability of default and must never be described or consumed as one.",
+  "primary_target_is_fixed_horizon_pd": false,
+  "primary_split_design_file": "configs/credit_risk_split_design_primary_terminal.json",
+  "secondary_target_column": "default_12m_last_pymnt_proxy",
+  "secondary_label_status_column": "label_status_12m_proxy",
+  "secondary_target_interpretation": "A fixed 12-month-window sensitivity-analysis target only, never a primary modeling target. Its default-event date is a PROXY (last_pymnt_d, or origination_date for the rare zero-payment case) -- last_pymnt_d is NOT a default-event timestamp, it is the date of the loan's most recent received payment. Because LendingClub's documented charge-off policy only formally charges off a loan after 120+ days delinquent, the true event date is systematically later than last_pymnt_d, so this proxy carries a one-directional bias that can only pull borderline defaults INTO the 12-month window, never push them out. Retained only for secondary sensitivity analysis against the primary target, with this bias preserved and documented wherever the target is used.",
+  "secondary_event_date_is_genuine_timestamp": false,
+  "secondary_event_date_source_column": "last_pymnt_d",
+  "secondary_split_design_file": "configs/credit_risk_split_design_secondary_proxy.json"
+}

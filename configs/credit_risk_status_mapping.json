@@ -1,0 +1,63 @@
+{
+  "_disclaimer": "Module C, Milestone 2. Built from the EMPIRICAL loan_status vocabulary found in the real downloaded file (9 distinct values over 2,260,668 cleaned loan rows; see docs/moduleC_milestone2_real_data_validation.md Section B/C), not from secondary-source documentation as in Milestone 1. Every value is mapped explicitly below -- an unrecognized value encountered later (e.g. a future LendingClub vintage with a new status string) must raise, never be silently dropped or defaulted to a category. `category` is a descriptive severity bucket for reporting (Section C) and is SEPARATE from which statuses actually trigger default_12m_last_pymnt_proxy/terminal_adverse_outcome=1 -- that trigger set is 'default_event_statuses' in configs/credit_risk_target_definition.json, and intentionally does NOT include 'Late (31-120 days)' even though it shares this file's 'severe_delinquency_or_default' category with 'Default' -- see the 'target_trigger_note' field on that entry.",
+  "statuses": [
+    {
+      "loan_status": "Current",
+      "category": "current_performing",
+      "meets_credit_policy": true,
+      "rationale": "Loan is actively performing, no missed payments as of the data snapshot."
+    },
+    {
+      "loan_status": "In Grace Period",
+      "category": "delinquent",
+      "meets_credit_policy": true,
+      "rationale": "Payment is past due but within LendingClub's grace period (up to 15 days) -- a lesser delinquency signal, not treated as default."
+    },
+    {
+      "loan_status": "Late (16-30 days)",
+      "category": "delinquent",
+      "meets_credit_policy": true,
+      "rationale": "16-30 days past due -- lesser delinquency severity, same non-default treatment as In Grace Period per Milestone 1's delinquency/default separation principle."
+    },
+    {
+      "loan_status": "Late (31-120 days)",
+      "category": "severe_delinquency_or_default",
+      "meets_credit_policy": true,
+      "rationale": "31-120 days past due -- severe delinquency, approaching LendingClub's documented ~120-150 day charge-off policy threshold, but the loan has NOT yet been charged off and could still cure or recover.",
+      "target_trigger_note": "Deliberately EXCLUDED from default_event_statuses (does not by itself set default_12m_last_pymnt_proxy/terminal_adverse_outcome=1), even though it shares this category with 'Default' below. Treating a recoverable in-flight delinquency as a confirmed default would pre-empt the loan's actual eventual resolution (cure, or progression to Charged Off, which is tracked separately when/if it happens)."
+    },
+    {
+      "loan_status": "Default",
+      "category": "severe_delinquency_or_default",
+      "meets_credit_policy": true,
+      "rationale": "LendingClub's own 'Default' snapshot status (only 40 rows observed) -- a loan flagged as in default but not yet formally charged off in the servicing system.",
+      "target_trigger_note": "INCLUDED in default_event_statuses -- this is LendingClub's own explicit default determination, not a mere lateness band."
+    },
+    {
+      "loan_status": "Charged Off",
+      "category": "charged_off",
+      "meets_credit_policy": true,
+      "rationale": "LendingClub has written off the loan as uncollectible -- the clearest, terminal default outcome in this vocabulary.",
+      "target_trigger_note": "INCLUDED in default_event_statuses."
+    },
+    {
+      "loan_status": "Fully Paid",
+      "category": "fully_paid",
+      "meets_credit_policy": true,
+      "rationale": "Loan was paid off in full -- terminal non-default outcome."
+    },
+    {
+      "loan_status": "Does not meet the credit policy. Status:Fully Paid",
+      "category": "fully_paid",
+      "meets_credit_policy": false,
+      "rationale": "Same terminal outcome as 'Fully Paid'; the 'does not meet the credit policy' prefix flags that this loan was issued under underwriting criteria LendingClub later tightened beyond, not a different repayment outcome. Tracked via meets_credit_policy=false, not a different category, so outcome severity is never conflated with underwriting-policy vintage."
+    },
+    {
+      "loan_status": "Does not meet the credit policy. Status:Charged Off",
+      "category": "charged_off",
+      "meets_credit_policy": false,
+      "rationale": "Same terminal outcome as 'Charged Off'; see note above.",
+      "target_trigger_note": "INCLUDED in default_event_statuses (same as 'Charged Off')."
+    }
+  ]
+}

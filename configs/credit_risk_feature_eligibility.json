@@ -1,34 +1,1062 @@
 {
-  "_disclaimer": "ILLUSTRATIVE, PROVISIONAL feature-eligibility classifications for Module C, Milestone 1, based on the recommended candidate dataset's (LendingClub accepted-loans) publicly documented column vocabulary from secondary sources. No dataset has been downloaded yet. These classifications MUST be re-verified against the actual raw file's own data dictionary before any feature is used to fit a model in a later milestone. See docs/credit_risk_data_model.md Sec 'Point-in-time feature policy' for the full rationale and docs/credit_risk_dataset_comparison.md for the dataset recommendation.",
+  "_disclaimer": "Module C, Milestone 2 UPDATE: this table is now VERIFIED against the real raw file (all 151 real columns covered, confirmed by exact-match diff against the live file header -- see docs/moduleC_milestone2_real_data_validation.md Section B/F). Supersedes the ~29-entry Milestone 1 provisional table, which was based on secondary-source documentation only. grade/sub_grade/int_rate remain an explicitly UNRESOLVED circularity group per Milestone 1 Section 4 -- this milestone does not resolve that question, only re-confirms it against real data. leakage_concern is populated only when available_at_application is 'no' or 'unknown' (an actual timing/circularity risk); for 'yes' entries, any clarifying note (e.g. distinguishing a bureau-pull field from this loan's own outcome) is folded into proposed_use instead, so leakage_concern consistently means 'this field carries a real exclusion risk\u2019, never \u2018here is unrelated context\u2019.",
   "fields": [
-    {"field": "annual_inc", "category": "borrower_stated_income", "available_at_application": "yes", "proposed_use": "underwriting feature (self-reported, unverified unless paired with verification_status)", "leakage_concern": ""},
-    {"field": "emp_length", "category": "borrower_employment", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "home_ownership", "category": "borrower_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "purpose", "category": "loan_request", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "dti", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "fico_range_low", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "fico_range_high", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "revol_util", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "open_acc", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "inq_last_6mths", "category": "borrower_credit_profile", "available_at_application": "yes", "proposed_use": "underwriting feature", "leakage_concern": ""},
-    {"field": "term", "category": "loan_terms", "available_at_application": "yes", "proposed_use": "underwriting feature / loan structure field", "leakage_concern": ""},
-    {"field": "installment", "category": "loan_terms", "available_at_application": "yes", "proposed_use": "underwriting feature; also the basis for deriving scheduled_payments", "leakage_concern": ""},
-    {"field": "grade", "category": "lender_assigned_risk_grade", "available_at_application": "unknown", "proposed_use": "treat with caution, do not default to including -- Milestone 2 decision", "leakage_concern": "Circularity risk, not a timing leak: grade is LendingClub's OWN risk assessment, assigned at/before origination, so it is technically available at decision time, but using it as a model feature risks modeling LendingClub's own prior model rather than the borrower's underlying default risk."},
-    {"field": "sub_grade", "category": "lender_assigned_risk_grade", "available_at_application": "unknown", "proposed_use": "same caution as grade", "leakage_concern": "Same circularity concern as grade, at finer granularity."},
-    {"field": "int_rate", "category": "loan_terms", "available_at_application": "unknown", "proposed_use": "same caution as grade", "leakage_concern": "Largely a deterministic function of grade/sub_grade -- inherits the same circularity concern."},
-    {"field": "loan_status", "category": "post_origination_outcome", "available_at_application": "no", "proposed_use": "TARGET SOURCE ONLY -- used to derive default_12m/delinquency_event_date, never an underwriting feature", "leakage_concern": "This is the outcome being predicted. Using it as a feature is a direct label leak."},
-    {"field": "total_pymnt", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude from underwriting features entirely", "leakage_concern": "Cumulative amount paid to date -- only exists after origination, grows with elapsed time, and is strongly outcome-correlated."},
-    {"field": "total_rec_prncp", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Post-origination realized principal recovered."},
-    {"field": "total_rec_int", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Post-origination realized interest recovered."},
-    {"field": "last_pymnt_d", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Date of most recent payment -- does not exist until after origination and is strongly correlated with whether/when a loan stopped paying."},
-    {"field": "last_pymnt_amnt", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Amount of most recent payment -- post-origination."},
-    {"field": "next_pymnt_d", "category": "post_origination_payment_history", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Scheduled next payment date -- populated only for still-current loans, so its presence/absence alone leaks loan status."},
-    {"field": "out_prncp", "category": "post_origination_balance", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Outstanding principal balance remaining -- a post-origination, time-varying quantity."},
-    {"field": "recoveries", "category": "post_origination_collections", "available_at_application": "no", "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD/EAD discussion only, never to a PD model", "leakage_concern": "Only exists for loans that have already defaulted -- a direct post-default collections outcome."},
-    {"field": "collection_recovery_fee", "category": "post_origination_collections", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Post-default collections fee."},
-    {"field": "hardship_flag", "category": "post_origination_servicing", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Hardship-program enrollment is a post-origination servicing event triggered by observed repayment difficulty."},
-    {"field": "debt_settlement_flag", "category": "post_origination_collections", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Debt settlement is a post-default resolution outcome."},
-    {"field": "last_fico_range_high", "category": "post_origination_credit_bureau", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "A later, refreshed FICO pull taken during loan servicing -- reflects the borrower's credit state after origination, potentially after the loan has already shown distress."},
-    {"field": "last_credit_pull_d", "category": "post_origination_credit_bureau", "available_at_application": "no", "proposed_use": "exclude", "leakage_concern": "Date of the most recent credit pull during servicing -- post-origination by definition."}
+    {
+      "field": "id",
+      "category": "identifier",
+      "available_at_application": "yes",
+      "proposed_use": "primary key / join column only, never a model feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "member_id",
+      "category": "identifier",
+      "available_at_application": "no",
+      "proposed_use": "exclude -- a pure identifier with no defensible predictive business role, and always 100% NULL in this public release (LendingClub strips it for privacy); unusable regardless of timing. Governance correction: previously left as 'unknown' (unresolved), reclassified to 'no' (excluded identifier) since it is merely an identifier, not a genuinely ambiguous-availability field -- see docs/decision_log.md 'Milestone 2 target-governance correction' entry.",
+      "leakage_concern": "Column is present in the schema but contains no information in the real file -- empirically verified, not assumed. Excluded as an identifier with no predictive business role, not carried forward as unresolved."
+    },
+    {
+      "field": "url",
+      "category": "identifier",
+      "available_at_application": "yes",
+      "proposed_use": "exclude -- contains the loan's own id in a URL, high-cardinality, no independent information",
+      "leakage_concern": ""
+    },
+    {
+      "field": "loan_amnt",
+      "category": "loan_request",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature / loan structure field",
+      "leakage_concern": ""
+    },
+    {
+      "field": "funded_amnt",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "amount actually funded -- available at origination, close to loan_amnt",
+      "leakage_concern": ""
+    },
+    {
+      "field": "funded_amnt_inv",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "investor-funded portion -- available at origination",
+      "leakage_concern": ""
+    },
+    {
+      "field": "term",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature / loan structure field; also required to derive maturity_date",
+      "leakage_concern": ""
+    },
+    {
+      "field": "installment",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature; also the basis for deriving scheduled_payments",
+      "leakage_concern": ""
+    },
+    {
+      "field": "emp_title",
+      "category": "borrower_employment",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature (free text, high cardinality, needs normalization before use)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "emp_length",
+      "category": "borrower_employment",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "home_ownership",
+      "category": "borrower_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "annual_inc",
+      "category": "borrower_stated_income",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature (self-reported, unverified unless paired with verification_status)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "verification_status",
+      "category": "borrower_stated_income",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- indicates whether annual_inc was verified",
+      "leakage_concern": ""
+    },
+    {
+      "field": "issue_d",
+      "category": "loan_lifecycle_date",
+      "available_at_application": "yes",
+      "proposed_use": "origination date -- the point-in-time anchor itself, not a feature; used to build maturity_date/observation_window_end",
+      "leakage_concern": ""
+    },
+    {
+      "field": "pymnt_plan",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Flag for whether the loan is on a modified post-distress payment plan -- only ever set after origination, triggered by observed repayment difficulty."
+    },
+    {
+      "field": "desc",
+      "category": "borrower_application_text",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature candidate (free text, NLP); not used in Milestone 2's scope",
+      "leakage_concern": ""
+    },
+    {
+      "field": "purpose",
+      "category": "loan_request",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "title",
+      "category": "borrower_application_text",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature candidate (free text, borrower-supplied loan title)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "zip_code",
+      "category": "borrower_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature (3-digit prefix only in this release)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "addr_state",
+      "category": "borrower_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "dti",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "delinq_2yrs",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "earliest_cr_line",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "fico_range_low",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "fico_range_high",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "inq_last_6mths",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_last_delinq",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_last_record",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_acc",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "pub_rec",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "revol_bal",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "revol_util",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_acc",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application",
+      "leakage_concern": ""
+    },
+    {
+      "field": "initial_list_status",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting/listing-time feature (whole vs fractional listing)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "policy_code",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "available at application; near-constant (==1 for essentially all rows in this file) -- low standalone value, note not exclude-for-leakage (Not a leakage concern; flagged only as near-constant/low-information in Section B profiling.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "application_type",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature (Individual vs Joint App)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "annual_inc_joint",
+      "category": "borrower_stated_income",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (94.7% NULL -- only populated when application_type=='Joint App')",
+      "leakage_concern": ""
+    },
+    {
+      "field": "dti_joint",
+      "category": "borrower_credit_profile",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (94.7% NULL, same conditionality as annual_inc_joint)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "verification_status_joint",
+      "category": "borrower_stated_income",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only",
+      "leakage_concern": ""
+    },
+    {
+      "field": "disbursement_method",
+      "category": "loan_terms",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting/origination-time feature (Cash vs DirectPay)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "grade",
+      "category": "lender_assigned_risk_grade",
+      "available_at_application": "unknown",
+      "proposed_use": "treat with caution, do not default to including -- circularity group, Milestone 2 decision unchanged from Milestone 1",
+      "leakage_concern": "Circularity risk, not a timing leak: grade is LendingClub's OWN risk assessment, assigned at/before origination, so it is technically available at decision time, but using it as a model feature risks modeling LendingClub's own prior model rather than the borrower's underlying default risk. UNRESOLVED BY DESIGN -- see docs/moduleC_milestone2_real_data_validation.md Section F."
+    },
+    {
+      "field": "sub_grade",
+      "category": "lender_assigned_risk_grade",
+      "available_at_application": "unknown",
+      "proposed_use": "same caution as grade -- circularity group",
+      "leakage_concern": "Same circularity concern as grade, at finer granularity. UNRESOLVED BY DESIGN."
+    },
+    {
+      "field": "int_rate",
+      "category": "loan_terms",
+      "available_at_application": "unknown",
+      "proposed_use": "same caution as grade -- circularity group",
+      "leakage_concern": "Largely a deterministic function of grade/sub_grade -- inherits the same circularity concern. UNRESOLVED BY DESIGN."
+    },
+    {
+      "field": "loan_status",
+      "category": "post_origination_outcome",
+      "available_at_application": "no",
+      "proposed_use": "TARGET SOURCE ONLY -- used to derive terminal_adverse_outcome (primary target)/default_12m_last_pymnt_proxy (secondary target), never an underwriting feature",
+      "leakage_concern": "This is the outcome being predicted (via status_mapping.py). Using it as a feature is a direct label leak."
+    },
+    {
+      "field": "out_prncp",
+      "category": "post_origination_balance",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Outstanding principal balance remaining -- a post-origination, time-varying quantity."
+    },
+    {
+      "field": "out_prncp_inv",
+      "category": "post_origination_balance",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Investor-share outstanding principal -- same concern as out_prncp."
+    },
+    {
+      "field": "total_pymnt",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Cumulative amount paid to date -- only exists after origination, grows with elapsed time, strongly outcome-correlated."
+    },
+    {
+      "field": "total_pymnt_inv",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Investor-share cumulative payment -- same concern as total_pymnt."
+    },
+    {
+      "field": "total_rec_prncp",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Post-origination realized principal recovered."
+    },
+    {
+      "field": "total_rec_int",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Post-origination realized interest recovered."
+    },
+    {
+      "field": "total_rec_late_fee",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Late fees charged -- only exist once a payment is actually late, a post-origination outcome signal."
+    },
+    {
+      "field": "recoveries",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD/EAD discussion only, never to a PD model",
+      "leakage_concern": "Only exists for loans that have already defaulted -- a direct post-default collections outcome."
+    },
+    {
+      "field": "collection_recovery_fee",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Post-default collections fee."
+    },
+    {
+      "field": "last_pymnt_d",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; USED ONLY as the documented default_12m_last_pymnt_proxy event-date proxy in target_construction.py, never as a model feature",
+      "leakage_concern": "Date of most recent payment -- does not exist until after origination and is strongly correlated with whether/when a loan stopped paying. This is the exact field target_construction.py uses as a labeled, bias-documented PROXY event date -- its use there is for target construction, not feature engineering, and must never be repurposed as a feature."
+    },
+    {
+      "field": "last_pymnt_amnt",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Amount of most recent payment -- post-origination."
+    },
+    {
+      "field": "next_pymnt_d",
+      "category": "post_origination_payment_history",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Scheduled next payment date -- populated only for still-current loans, so its presence/absence alone leaks loan status."
+    },
+    {
+      "field": "last_credit_pull_d",
+      "category": "post_origination_credit_bureau",
+      "available_at_application": "no",
+      "proposed_use": "exclude; used only to help infer the file's data_as_of_date snapshot proxy in target_construction.py, never as a feature",
+      "leakage_concern": "Date of the most recent credit pull during servicing -- post-origination by definition."
+    },
+    {
+      "field": "last_fico_range_high",
+      "category": "post_origination_credit_bureau",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "A later, refreshed FICO pull taken during loan servicing -- reflects the borrower's credit state after origination, potentially after the loan has already shown distress."
+    },
+    {
+      "field": "last_fico_range_low",
+      "category": "post_origination_credit_bureau",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Same concern as last_fico_range_high."
+    },
+    {
+      "field": "collections_12_mths_ex_med",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Collections in the past 12 months (excluding medical) -- a borrower credit-history attribute from the bureau pull at application, not this loan's own outcome.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_last_major_derog",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Months since most recent 90-day-or-worse rating -- bureau history field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "acc_now_delinq",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Number of accounts currently delinquent -- bureau snapshot at application.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "tot_coll_amt",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Total collections amount owed -- bureau snapshot at application.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "tot_cur_bal",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Total current balance across all accounts -- bureau snapshot at application.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_acc_6m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_act_il",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_il_12m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_il_24m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_rcnt_il",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_bal_il",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "il_util",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_rv_12m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "open_rv_24m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "max_bal_bc",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "all_util",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_rev_hi_lim",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "inq_fi",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_cu_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "inq_last_12m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "acc_open_past_24mths",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "avg_cur_bal",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "bc_open_to_buy",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "bc_util",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "chargeoff_within_12_mths",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Despite the name, this is a borrower credit-history attribute from the bureau pull (charge-offs on the borrower's OTHER accounts in the past 12 months), not this loan's own outcome -- do not confuse with loan_status/terminal_adverse_outcome.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "delinq_amnt",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mo_sin_old_il_acct",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mo_sin_old_rev_tl_op",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mo_sin_rcnt_rev_tl_op",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mo_sin_rcnt_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mort_acc",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_recent_bc",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_recent_bc_dlq",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_recent_inq",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "mths_since_recent_revol_delinq",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_accts_ever_120_pd",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_actv_bc_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_actv_rev_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_bc_sats",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_bc_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_il_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_op_rev_tl",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_rev_accts",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_rev_tl_bal_gt_0",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_sats",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_tl_120dpd_2m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_tl_30dpd",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_tl_90g_dpd_24m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "num_tl_op_past_12m",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "pct_tl_nvr_dlq",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "percent_bc_gt_75",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "pub_rec_bankruptcies",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "tax_liens",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "tot_hi_cred_lim",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_bal_ex_mort",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_bc_limit",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "total_il_high_credit_limit",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature -- credit-bureau pull at application (Credit-bureau trade-line summary field from the application-time pull.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "revol_bal_joint",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_fico_range_low",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_fico_range_high",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_earliest_cr_line",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_inq_last_6mths",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_mort_acc",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_open_acc",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_revol_util",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_open_act_il",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_num_rev_accts",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_chargeoff_within_12_mths",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_collections_12_mths_ex_med",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "sec_app_mths_since_last_major_derog",
+      "category": "borrower_credit_profile_bureau_pull",
+      "available_at_application": "yes",
+      "proposed_use": "underwriting feature for joint applications only (~95% NULL -- only populated when application_type=='Joint App'); sparsity is a modeling consideration, not a timing concern (Secondary/co-applicant credit-bureau attribute pulled at application, same timing class as the primary applicant's equivalent field.)",
+      "leakage_concern": ""
+    },
+    {
+      "field": "hardship_flag",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Whether the loan ever entered a hardship program -- only ever set after a post-origination distress event."
+    },
+    {
+      "field": "hardship_type",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program type -- post-origination."
+    },
+    {
+      "field": "hardship_reason",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program reason -- post-origination."
+    },
+    {
+      "field": "hardship_status",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program status -- post-origination."
+    },
+    {
+      "field": "deferral_term",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship deferral term -- post-origination."
+    },
+    {
+      "field": "hardship_amount",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program amount -- post-origination."
+    },
+    {
+      "field": "hardship_start_date",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program start date -- post-origination."
+    },
+    {
+      "field": "hardship_end_date",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program end date -- post-origination."
+    },
+    {
+      "field": "payment_plan_start_date",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Modified payment plan start date -- post-origination."
+    },
+    {
+      "field": "hardship_length",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program length -- post-origination."
+    },
+    {
+      "field": "hardship_dpd",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Days past due at hardship enrollment -- post-origination."
+    },
+    {
+      "field": "hardship_loan_status",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Loan status at hardship enrollment -- directly outcome-adjacent, post-origination."
+    },
+    {
+      "field": "orig_projected_additional_accrued_interest",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship-program interest projection -- post-origination."
+    },
+    {
+      "field": "hardship_payoff_balance_amount",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program payoff balance -- post-origination."
+    },
+    {
+      "field": "hardship_last_payment_amount",
+      "category": "post_origination_servicing",
+      "available_at_application": "no",
+      "proposed_use": "exclude",
+      "leakage_concern": "Hardship program last payment amount -- post-origination."
+    },
+    {
+      "field": "debt_settlement_flag",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Whether the loan ever entered debt settlement -- only ever set after a post-default collections event."
+    },
+    {
+      "field": "debt_settlement_flag_date",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement flag date -- post-default."
+    },
+    {
+      "field": "settlement_status",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement status -- post-default."
+    },
+    {
+      "field": "settlement_date",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement date -- post-default."
+    },
+    {
+      "field": "settlement_amount",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement amount -- post-default."
+    },
+    {
+      "field": "settlement_percentage",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement percentage -- post-default."
+    },
+    {
+      "field": "settlement_term",
+      "category": "post_origination_collections",
+      "available_at_application": "no",
+      "proposed_use": "exclude from underwriting features; candidate input to an illustrative LGD discussion only, never to a PD model",
+      "leakage_concern": "Debt settlement term -- post-default."
+    }
   ]
 }

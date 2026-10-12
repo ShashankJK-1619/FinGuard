@@ -1,0 +1,14 @@
+{
+  "_disclaimer": "Module C, Milestone 2, Section G -- SECONDARY split, for the secondary sensitivity-analysis-only target `default_12m_last_pymnt_proxy` (see configs/credit_risk_target_governance.json; this target is never primary). Boundaries chosen by inspecting the REAL censoring-by-origination-year breakdown for this target (see docs/credit_risk_split_design.md and docs/moduleC_milestone2_real_data_validation.md Section E): origination years 2007-2017 are 0% censored under the inferred data_as_of_date (2019-04-01), since every loan originated by end-2017 has had its +12-month observation window fully elapse before the snapshot. Only the 2018 vintage shows censoring (68.9%), so it is excluded from all three splits entirely, rather than partially included -- a loan-level filter would otherwise keep only the early-2018 subset that happened to resolve fastest, a subtle survivorship distortion. This is a principled exclusion of the most recent, least-resolved data, not an optimization-driven choice -- see the project rule 'do not touch later periods merely to optimize performance.' This file's boundaries are UNCHANGED from the original Milestone 2 draft -- only the file name/location changed (split out of the single credit_risk_split_design.json) so the primary and secondary splits can coexist explicitly, per the governance correction.",
+  "data_as_of_date": "2019-04-01",
+  "outcome_window_months": 12,
+  "train_start": "2007-06-01",
+  "train_end": "2014-12-31",
+  "validation_start": "2015-01-01",
+  "validation_end": "2016-12-31",
+  "benchmark_start": "2017-01-01",
+  "benchmark_end": "2017-12-31",
+  "excluded_too_recent_start": "2018-01-01",
+  "target_column": "default_12m_last_pymnt_proxy",
+  "label_status_column": "label_status_12m_proxy"
+}
