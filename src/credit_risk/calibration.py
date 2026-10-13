@@ -24,12 +24,42 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import statsmodels.api as sm
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss
 
 MIN_TRAIN_ROWS_FOR_ISOTONIC = 1000
 ISOTONIC_PREFERENCE_BRIER_IMPROVEMENT = 0.0005  # material improvement floor, predeclared
+
+# Module C, Milestone 4, Section A addition: Cox calibration regression
+# (logit-space slope/intercept). Clipping floor for probabilities before
+# taking logit(), since logit(0) and logit(1) are undefined.
+CALIBRATION_REGRESSION_PROBABILITY_CLIP_EPS = 1e-6
+
+
+class CalibrationRegressionError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class CalibrationSlopeIntercept:
+    """Cox calibration regression result: fits
+    `y_true ~ intercept + slope * logit(y_prob)` via unpenalized logistic
+    regression. Perfect calibration is `slope == 1` and `intercept == 0`.
+    `slope < 1` means predictions are too extreme (overconfident at the
+    tails); `slope > 1` means predictions are too mild (underconfident).
+    A nonzero `intercept` indicates systematic over-/under-prediction of
+    the overall rate, independent of spread. `converged` reports whether
+    statsmodels' MLE fit converged -- a non-converged fit's slope/intercept
+    should be treated as unreliable, not silently trusted."""
+
+    model_name: str
+    split_name: str
+    n: int
+    intercept: float
+    slope: float
+    converged: bool
 
 
 @dataclass(frozen=True)
@@ -143,3 +173,55 @@ def reliability_curve(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) 
             )
         )
     return bins
+
+
+def calibration_slope_intercept(
+    model_name: str,
+    split_name: str,
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    eps: float = CALIBRATION_REGRESSION_PROBABILITY_CLIP_EPS,
+) -> CalibrationSlopeIntercept:
+    """Module C, Milestone 4, Section A addition (additive -- does not
+    modify any Milestone 3 function above). Fits the Cox calibration
+    regression `y_true ~ intercept + slope * logit(y_prob)` via an
+    unpenalized logistic regression (`statsmodels.api.Logit`) and returns
+    the fitted intercept/slope. `y_prob` is clipped to `[eps, 1 - eps]`
+    before taking `logit()`, since `logit(0)`/`logit(1)` are undefined --
+    predicted probabilities of exactly 0 or 1 are treated as "extremely
+    close to the boundary," not literally certain.
+
+    Raises `CalibrationRegressionError` on structurally invalid input
+    (mismatched shapes, empty arrays, or `y_true` containing only one
+    class -- a calibration regression is undefined with no contrast to
+    fit against). Does NOT raise on MLE non-convergence -- that is
+    reported via the `converged` field instead, since a non-converged fit
+    is a data-quality signal worth surfacing, not necessarily a caller
+    bug."""
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob, dtype=float)
+    if y_true.shape != y_prob.shape:
+        raise CalibrationRegressionError(
+            f"y_true and y_prob must have the same shape; got {y_true.shape} vs {y_prob.shape}"
+        )
+    if y_true.size == 0:
+        raise CalibrationRegressionError("y_true/y_prob must be non-empty")
+    if len(np.unique(y_true)) < 2:
+        raise CalibrationRegressionError(
+            "y_true must contain both classes (0 and 1) to fit a calibration regression"
+        )
+
+    y_prob_clipped = np.clip(y_prob, eps, 1.0 - eps)
+    logit_p = np.log(y_prob_clipped / (1.0 - y_prob_clipped))
+    design = sm.add_constant(logit_p)
+    result = sm.Logit(y_true, design).fit(disp=0)
+    converged = bool(result.mle_retvals.get("converged", True))
+
+    return CalibrationSlopeIntercept(
+        model_name=model_name,
+        split_name=split_name,
+        n=int(y_true.size),
+        intercept=float(result.params[0]),
+        slope=float(result.params[1]),
+        converged=converged,
+    )

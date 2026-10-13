@@ -158,7 +158,7 @@ for the full scenario, design rationale, and limitations, and
 [docs/payments_experiment_metric_dictionary.md](docs/payments_experiment_metric_dictionary.md)
 for the per-metric numerator/denominator/direction/tier dictionary.
 
-## Project status (Module C): Milestone 3 complete — Model A / Model B logistic PD baselines fit and evaluated on the frozen primary split
+## Project status (Module C): Milestone 4 complete — expected loss, decisioning, and probability-governance diagnostics built on the frozen Milestone 3 baselines
 
 Module C Milestone 1 designed the lending lifecycle and a 5-table data
 model (`borrowers`, `loan_applications`, `loans`, `scheduled_payments`,
@@ -260,10 +260,60 @@ unaltered):
 - 10 new `src/credit_risk/` modules, 10 new test files, 137 tests
   passing with no regressions.
 
-**No model has been selected for deployment, no production threshold
-exists, and no further Module C milestone has been started.** See
+**Module C Milestone 4 built four new, additive layers on top of the
+frozen Model A / Model B baselines** — refit once each via Milestone
+3's own fitting function, never retuned:
+- **Section A probability-quality re-review**: confirmed, on the
+  existing frozen split, that neither sigmoid nor isotonic
+  recalibration improves on the raw/uncalibrated probability, so every
+  downstream Milestone 4 calculation uses the **raw, uncalibrated**
+  model output. A new Cox calibration-slope/intercept diagnostic found
+  both models' calibration degrades substantially out-of-time (slope
+  0.95→0.42 for Model A, 0.85→0.50 for Model B, validation→benchmark)
+  even though Brier score and PSI-measured score distribution both look
+  stable — flagged as an honest finding, not smoothed over.
+- **Section B illustrative risk bands** (low/medium/high, tertile
+  boundaries fit on train only) correctly rank-order observed
+  adverse-outcome rate on both evaluation splits; calibration gaps
+  widen to +1.8/+3.9 points in the `high` band on benchmark.
+- **Sections C/D an illustrative LGD(=0.8)×EAD(=`loan_amnt`)
+  expected-loss framework**: Model A's average benchmark expected loss
+  is $2,065.52, Model B's is $2,147.31 — a small difference, and the
+  two models' per-loan expected-loss rankings agree closely (Spearman
+  ρ=0.9667), consistent with Milestone 3's existing finding that Model
+  B's lender-grade lift is real but modest.
+- **Sections E/F/G an illustrative three-way decisioning policy**
+  (`approve_like`/`manual_review`/`decline_like`, neutral labels,
+  thresholds = Model A's risk-band boundaries) with a configurable cost
+  model (realized `LGD×EAD` loss + flat review/opportunity costs):
+  base-case 57.91% adverse-outcome capture at 34.81% good-loan
+  rejection on benchmark, and a 7-row sensitivity table that varies
+  LGD/threshold/cost assumptions without ever calling a row "optimal."
+- **Section H restates the selection-bias constraint** machine-readably
+  (a top-level JSON key, not only prose): rejected applicants have no
+  outcome in this data, so nothing here validates a changed approval
+  policy against the full applicant population.
+- **Sections I/J governance diagnostics**: PSI (train vs.
+  validation/benchmark) stays in the heuristic "no significant change"
+  band for both models even as calibration quality degrades (I) — two
+  genuinely different properties; and a discussion of why Model B's
+  higher raw discrimination is not evidence of better governance, given
+  its near-total expected-loss rank agreement with Model A and its
+  reliance on an opaque, LendingClub-internal `grade`/`sub_grade`
+  signal (J).
+- 6 new `src/credit_risk/` modules (plus one additively extended),
+  6 new/extended test files, **371 passed, 1 skipped** full suite, zero
+  regressions.
+
+**No model has been selected for deployment, no production decisioning
+policy exists, and no further Module C milestone has been started.**
+See
+[docs/moduleC_milestone4_credit_decisioning.md](docs/moduleC_milestone4_credit_decisioning.md)
+for the full Milestone 4 write-up (Sections A-M),
+[docs/credit_risk_expected_loss_framework.md](docs/credit_risk_expected_loss_framework.md)
+for the LGD/EAD rationale,
 [docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
-for the full Milestone 3 write-up (Sections A-M),
+for the Milestone 3 write-up (Sections A-M),
 [docs/credit_risk_model_feature_sets.md](docs/credit_risk_model_feature_sets.md)
 for the Model A / Model B feature-set rationale,
 [docs/moduleC_milestone2_real_data_validation.md](docs/moduleC_milestone2_real_data_validation.md)
@@ -285,8 +335,10 @@ configs/          Configuration (paths.json, cost_assumptions.json,
                   credit_risk_target_governance.json,
                   credit_risk_split_design_primary_terminal.json,
                   credit_risk_split_design_secondary_proxy.json,
-                  credit_risk_model_feature_sets.json) — no hardcoded
-                  paths, cost values, or experiment/credit-risk
+                  credit_risk_model_feature_sets.json,
+                  credit_risk_expected_loss_assumptions.json,
+                  credit_risk_decisioning_cost_assumptions.json) — no
+                  hardcoded paths, cost values, or experiment/credit-risk
                   assumptions in code
 data/raw/         Raw Kaggle CSVs + the gitignored LendingClub
                   2007-2018Q4 accepted-loans CSV (not committed)
@@ -301,7 +353,9 @@ docs/             Generated reports + written analysis (data profile, join
                   definition + milestone 1 summary + milestone 2 real-
                   data validation + status-mapping + split-design docs +
                   milestone 3 Model A/B feature-set rationale +
-                  milestone 3 credit baseline write-up (Sections A-M),
+                  milestone 3 credit baseline write-up (Sections A-M) +
+                  milestone 4 expected-loss-framework rationale +
+                  milestone 4 credit decisioning write-up (Sections A-M),
                   decision log)
 notebooks/        Exploratory notebooks (none yet)
 src/data/         Config, DuckDB loaders, inspection/validation scripts
@@ -347,7 +401,19 @@ src/credit_risk/  Module C: logical schema constants, target-definition
                   stability by origination year), subgroup_
                   diagnostics.py (non-demographic governance
                   diagnostics, protected-class-proxy field rejection),
-                  and run_milestone3_baseline.py (end-to-end
+                  run_milestone3_baseline.py (end-to-end orchestration
+                  script), plus Milestone 4's decisioning/governance
+                  modules: expected_loss.py (configurable LGD x EAD
+                  expected-loss framework), risk_bands.py (train-only-
+                  fit low/medium/high bands), calibration.py (additively
+                  extended with a Cox calibration-slope/intercept
+                  diagnostic), decisioning.py (neutral-label three-way
+                  approve_like/manual_review/decline_like policy),
+                  decision_cost_model.py (illustrative decision-cost
+                  framework + threshold/assumption sensitivity analysis),
+                  score_stability.py (PSI drift heuristic, score
+                  distribution/calibration/adverse-outcome-rate by
+                  vintage), and run_milestone4_decisioning.py (end-to-end
                   orchestration script)
 tests/            pytest suite (incl. tests/features/ and tests/models/
                   leakage-safety tests, tests/payments/ for Module A,
@@ -577,7 +643,37 @@ Run tests:
 pytest tests/credit_risk/ -v
 ```
 
-## Known limitations (as of Module B Milestone 5 / Module A Milestone 2 / Module C Milestone 3)
+## Running Module C Milestone 4 (expected loss, decisioning & probability governance)
+
+Requires the raw LendingClub CSV from Milestone 2 already in place
+(Model A/B are refit, not loaded from a pickle):
+
+```bash
+.venv/bin/python -m src.credit_risk.run_milestone4_decisioning
+```
+
+Refits Model A and Model B on the primary split's train bucket (reusing
+Milestone 3's own fitting function), re-reviews probability quality
+(Section A), fits train-only risk bands (Section B), computes the
+illustrative LGD×EAD expected-loss framework and the Model A vs. Model
+B comparison (Sections C/D), evaluates the illustrative three-way
+decisioning policy and its cost/sensitivity analysis (Sections E/F/G),
+and runs the vintage/stability governance diagnostics (Section I), then
+writes `data/interim/credit_risk_milestone4_metrics.json` (gitignored,
+not committed; includes a machine-readable `selection_bias_disclaimer`
+and `target_framing_note`). See
+[docs/moduleC_milestone4_credit_decisioning.md](docs/moduleC_milestone4_credit_decisioning.md)
+for the full write-up of every number this script produces, and
+[docs/credit_risk_expected_loss_framework.md](docs/credit_risk_expected_loss_framework.md)
+for the LGD/EAD rationale.
+
+Run tests:
+
+```bash
+pytest tests/credit_risk/ -v
+```
+
+## Known limitations (as of Module B Milestone 5 / Module A Milestone 2 / Module C Milestone 4)
 
 - Dataset inspection scripts have been run against the actual Kaggle data.
   See `docs/data_profile.md`, `docs/join_validation.md`,
@@ -830,11 +926,48 @@ pytest tests/credit_risk/ -v
   underlying data shows a "CC0: Public Domain" tag, but that tag belongs
   to Kaggle's own page and is not treated as inherited by this mirror.
   See `configs/credit_risk_raw_source_metadata.json`.
+- **Module C Milestone 4's expected-loss and decisioning figures are
+  illustrative, synthetic, and config-driven, not real LendingClub
+  underwriting/pricing/review-operations figures.** LGD (default 0.8)
+  and the EAD proxy (`loan_amnt`) are author-chosen assumptions, not
+  derived from the real `recoveries`/`total_rec_prncp` fields; the
+  decisioning policy's `cost_per_manual_review`/
+  `opportunity_cost_per_good_loan_declined` ($50/$150) are likewise
+  synthetic. No threshold, LGD value, or cost assumption in the Section
+  G sensitivity table is labeled "optimal." See
+  [docs/credit_risk_expected_loss_framework.md](docs/credit_risk_expected_loss_framework.md)
+  and
+  [docs/moduleC_milestone4_credit_decisioning.md](docs/moduleC_milestone4_credit_decisioning.md)
+  §C-G.
+- **Module C Milestone 4 found both Model A and Model B's calibration
+  degrades substantially out-of-time**, even though Brier score and a
+  PSI-based score-distribution-stability check both look stable on the
+  same split. A Cox calibration-slope/intercept diagnostic shows slope
+  dropping from 0.95 (Model A) / 0.85 (Model B) on validation to 0.42 /
+  0.50 on benchmark, with a large negative intercept — read as a real,
+  reported finding, not smoothed over, and a reason not to trust this
+  model's probabilities unconditionally on a future vintage. See
+  [docs/moduleC_milestone4_credit_decisioning.md](docs/moduleC_milestone4_credit_decisioning.md)
+  §A, §I.
+- **Module C Milestone 4's illustrative decisioning policy is not a
+  real approve/decline system and was not evaluated against the full
+  applicant population.** It is applied only to already-originated,
+  already-labeled historical loans, using neutral labels
+  (`approve_like`/`manual_review`/`decline_like`) specifically to avoid
+  overstating underwriting authority. The selection-bias constraint
+  (rejected applicants have no outcome in this data) applies with full
+  force here too, and is restated machine-readably as a top-level key
+  in `data/interim/credit_risk_milestone4_metrics.json`. See
+  [docs/moduleC_milestone4_credit_decisioning.md](docs/moduleC_milestone4_credit_decisioning.md)
+  §E, §H.
 - **No further Module C milestone has been started.** Milestone 3 fit
-  and evaluated Model A and Model B as described above; no model has
-  been selected for deployment, no production threshold exists, and
-  the reject-inference/selection-bias limitation stated above (dataset
-  contains only originated loans) is unchanged by Milestone 3.
+  and evaluated Model A and Model B; Milestone 4 added expected-loss,
+  decisioning, cost, and governance/stability diagnostics on top of
+  those same frozen models. No model has been selected for deployment,
+  no production decisioning policy or threshold exists, and the
+  reject-inference/selection-bias limitation stated above (dataset
+  contains only originated loans) remains unresolved through Milestone
+  4.
 - **Module A Milestone 3 (split + baseline model) has not been started.**
 
 ## License / provenance note

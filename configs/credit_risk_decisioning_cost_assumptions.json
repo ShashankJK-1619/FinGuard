@@ -1,0 +1,6 @@
+{
+  "_disclaimer": "ILLUSTRATIVE, synthetic decisioning-cost assumptions chosen by the author for Module C, Milestone 4 of this learning project. These are NOT real LendingClub review-operations costs or foregone-profit figures, and this module's output is NOT a real approve/decline policy recommendation (see src/credit_risk/decisioning.py's neutral-label discipline). Change freely; nothing here is backed by real operating data.",
+  "_cost_model_note": "cost_per_manual_review and opportunity_cost_per_good_loan_declined are flat, configurable per-loan dollar costs -- mirroring src/models/cost_model.py's Module B precedent. The third cost component, the realized dollar loss on an adverse-outcome loan that was NOT declined, is deliberately NOT a flat scalar here: it is computed per loan as lgd * ead (see src/credit_risk/expected_loss.py and configs/credit_risk_expected_loss_assumptions.json for the single source of truth on lgd/ead), so a bigger loan that goes bad costs more than a smaller one -- consistent with Milestone 4's 'distinguish model probability vs. expected loss vs. business decision' discipline.",
+  "cost_per_manual_review": 50.0,
+  "opportunity_cost_per_good_loan_declined": 150.0
+}

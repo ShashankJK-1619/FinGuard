@@ -993,3 +993,116 @@ chronological split built from it.
   set, and no commit or push was made as part of this milestone** —
   the deliverable stops here for review, per explicit instruction not
   to start a further Module C milestone without the user's review.
+
+## 2026-10-13 — Module C Milestone 4: expected loss, decisioning & probability-governance diagnostics
+
+- **Model A and Model B were refit, never retuned, by directly calling
+  Milestone 3's own fitting function**
+  (`run_milestone3_baseline._fit_and_evaluate_one_model`), not copied or
+  reimplemented — guaranteeing Milestone 4's analyses run against
+  exactly the same specification, split, and preprocessing pipeline
+  Milestone 3 committed, with no silent drift.
+- **Section A: kept raw, uncalibrated probabilities, per the milestone's
+  own "don't force calibration" constraint.** Re-checked Milestone 3's
+  existing finding that neither sigmoid nor isotonic improves on the
+  uncalibrated base model's Brier score on validation (true for both
+  models), then explicitly decided every Milestone 4 calculation (risk
+  bands, expected loss, decisioning, cost model, governance
+  diagnostics) consumes the **raw** predicted probability, not a
+  recalibrated variant — a deliberate reading of "keep uncalibrated if
+  best," not an oversight.
+- **New Cox calibration-slope/intercept diagnostic added additively to
+  `calibration.py`**, Milestone 3's own functions untouched. Found a
+  real, honest, somewhat concerning result: both models' calibration
+  slope is reasonable on validation (Model A 0.95, Model B 0.85) but
+  degrades sharply on benchmark (Model A 0.42, Model B 0.50) with a
+  large negative intercept — reported as-is, not smoothed over, even
+  though Brier score and PSI (below) both look stable on the same
+  split. This is explicitly flagged in the milestone doc as two
+  genuinely different properties (distribution shape vs. calibration
+  accuracy), not a contradiction to be resolved away.
+- **Risk-band boundaries (`risk_bands.py`) are fit on train-only
+  quantiles and never refit** when bucketing validation/benchmark —
+  mirrors the preprocessing pipeline's own train-only-fit discipline
+  from Milestone 3. Zero-row bands are reported with explicit `None`
+  fields rather than fabricated zeros (`summarize_risk_bands`).
+- **Expected-loss framework (`expected_loss.py`) uses a single
+  configurable LGD scalar (default 0.8,
+  `configs/credit_risk_expected_loss_assumptions.json`) and
+  `loan_amnt` as the EAD proxy** (`EAD_FIELD` constant) — chosen for
+  consistency with Milestone 3's own feature-selection decision to drop
+  `funded_amnt`/`funded_amnt_inv` as near-duplicates of `loan_amnt`.
+  Neither LGD nor the EAD definition is derived from the real
+  `recoveries`/`total_rec_prncp` fields; full rationale in the new
+  companion doc, `docs/credit_risk_expected_loss_framework.md`.
+- **Decision-cost module (`decision_cost_model.py`) deliberately departs
+  from Module B's `cost_model.py` precedent on its largest cost term**:
+  rather than a flat per-event scalar, realized adverse-outcome loss is
+  computed per loan as `lgd * ead` (the same lgd/ead Section C uses,
+  passed in by the caller, not duplicated as a separate config value) —
+  so a bigger loan that goes bad costs more than a smaller one. Flat
+  scalars are kept only for `cost_per_manual_review` and
+  `opportunity_cost_per_good_loan_declined` ($50/$150,
+  `configs/credit_risk_decisioning_cost_assumptions.json`), which really
+  are flat per-event costs.
+- **Three-way decisioning (`decisioning.py`) reuses Section B's risk-
+  band boundaries directly as its review/decline thresholds**
+  (`low_medium_boundary`→review, `medium_high_boundary`→decline) rather
+  than independently fitting a second threshold pair — avoids duplicate
+  threshold-fitting logic and ties the "approve-like/review/decline-
+  like" policy to the "low/medium/high" bands by construction. Labels
+  are deliberately neutral (`approve_like`/`manual_review`/
+  `decline_like`), never "approve"/"decline," to avoid overstating
+  underwriting authority for any real applicant.
+- **Section G's sensitivity analysis never labels any row "optimal"**
+  (`sensitivity_analysis` only reports how adverse-outcome capture,
+  good-loan rejection rate, review volume, and estimated illustrative
+  cost move as LGD/threshold/cost assumptions move) — verified by test
+  (`"optimal" not in [c.lower() for c in out.columns]`).
+- **Selection-bias constraint embedded machine-readably, not only in
+  prose**: `SELECTION_BIAS_DISCLAIMER` is written as a top-level
+  `selection_bias_disclaimer` key in
+  `data/interim/credit_risk_milestone4_metrics.json`, alongside a
+  `target_framing_note` restating that `terminal_adverse_outcome` is
+  not a 12-month PD — satisfying the requirement that both disclaimers
+  be present in the generated, machine-readable artifact itself.
+- **PSI drift heuristic (`score_stability.py`) fits bin edges on the
+  reference distribution only** (train), mirroring the train-only-fit
+  discipline used throughout this project, with an explicit
+  `PSI_HEURISTIC_CAVEAT` that its 0.10/0.25 bands are an industry rule
+  of thumb, not a calibrated statistical test on this dataset. Result:
+  both models land in the heuristic "no significant change" band for
+  train vs. validation and train vs. benchmark, despite the calibration
+  degradation found in Section A/I — an intentional, documented tension
+  rather than an inconsistency to paper over.
+- **Section J governance discussion concludes Model B's higher raw
+  discrimination is not evidence of better governance**: Model A and
+  Model B's benchmark expected-loss rankings agree almost completely
+  (Spearman ρ=0.9667), consistent with Milestone 3's existing finding
+  that Model B's lender-grade lift is real but modest, and consistent
+  with the circularity/interpretability/historical-dependency concerns
+  about `grade`/`sub_grade`/`int_rate` already raised in Milestone 3.
+- **Pandas `None`→`NaN` coercion pitfall hit again** (same family as the
+  numpy `bool_` pitfall from Milestone 3): a test asserting a zero-row
+  risk band's fields `is None` failed because a DataFrame column mixing
+  floats and `None` silently coerces `None` to `NaN` — fixed by testing
+  with `pd.isna()` instead, the module's actual return value (a literal
+  `None`) was already correct.
+- **6 new `src/credit_risk/` modules** (`expected_loss.py`,
+  `risk_bands.py`, `decisioning.py`, `decision_cost_model.py`,
+  `score_stability.py`, `run_milestone4_decisioning.py` orchestration)
+  plus one existing module additively extended (`calibration.py`,
+  Milestone 3's functions untouched) and **6 new/extended test files**.
+  Full repository suite: **371 passed, 1 skipped**
+  (`pytest -q`), zero regressions against the pre-Milestone-4 baseline
+  of 318 passed.
+- **New docs**: `docs/credit_risk_expected_loss_framework.md` (Section
+  C/D LGD/EAD companion doc) and
+  `docs/moduleC_milestone4_credit_decisioning.md` (the full Section A-M
+  write-up with every real computed number). `README.md`'s Module C
+  sections and this entry were updated to match.
+- **No model was selected for deployment, no production decisioning
+  policy or threshold was set, and no commit or push was made as part
+  of this milestone** — the deliverable stops here for review, per
+  explicit instruction not to start a further Module C milestone
+  without the user's review.

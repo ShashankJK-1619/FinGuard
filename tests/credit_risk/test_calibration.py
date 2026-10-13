@@ -1,7 +1,10 @@
 """Tests for Module C, Milestone 3, Section F: src/credit_risk/calibration.py
 -- leakage-safe calibration fit (train-only CV) vs. quality assessment
 (validation-only), and the predeclared isotonic-eligibility/preference
-rules."""
+rules.
+
+Also covers Module C, Milestone 4, Section A's additive
+`calibration_slope_intercept` (Cox calibration regression)."""
 import numpy as np
 import pytest
 from sklearn.linear_model import LogisticRegression
@@ -9,6 +12,8 @@ from sklearn.linear_model import LogisticRegression
 from src.credit_risk.calibration import (
     ISOTONIC_PREFERENCE_BRIER_IMPROVEMENT,
     MIN_TRAIN_ROWS_FOR_ISOTONIC,
+    CalibrationRegressionError,
+    calibration_slope_intercept,
     compare_calibration,
     fit_calibrated_variants,
     reliability_curve,
@@ -103,3 +108,57 @@ def test_reliability_curve_skips_empty_bins_rather_than_fabricating_them():
     bins = reliability_curve(y_true, y_prob, n_bins=10)
     assert len(bins) == 1
     assert bins[0].n == 2
+
+
+def test_calibration_slope_intercept_recovers_near_one_zero_on_well_calibrated_data():
+    # Generate y from the TRUE probability y_prob itself -- a model whose
+    # stated probabilities exactly match reality should fit slope~=1,
+    # intercept~=0.
+    rng = np.random.default_rng(3)
+    n = 20000
+    y_prob = rng.uniform(0.02, 0.98, size=n)
+    y_true = (rng.uniform(size=n) < y_prob).astype(int)
+    result = calibration_slope_intercept("model_a", "validation", y_true, y_prob)
+    assert result.model_name == "model_a"
+    assert result.split_name == "validation"
+    assert result.n == n
+    assert result.converged is True
+    assert result.slope == pytest.approx(1.0, abs=0.15)
+    assert result.intercept == pytest.approx(0.0, abs=0.1)
+
+
+def test_calibration_slope_intercept_detects_overconfidence():
+    # y_prob is a deliberately over-spread (too extreme / overconfident)
+    # transform of a well-calibrated underlying probability -- expect a
+    # fitted slope < 1.
+    rng = np.random.default_rng(4)
+    n = 20000
+    base_p = rng.uniform(0.1, 0.9, size=n)
+    y_true = (rng.uniform(size=n) < base_p).astype(int)
+    logit_base = np.log(base_p / (1 - base_p))
+    overconfident_p = 1 / (1 + np.exp(-2.5 * logit_base))  # artificially stretched
+    result = calibration_slope_intercept("model_a", "validation", y_true, overconfident_p)
+    assert result.slope < 1.0
+
+
+def test_calibration_slope_intercept_mismatched_shapes_raise():
+    with pytest.raises(CalibrationRegressionError):
+        calibration_slope_intercept("model_a", "validation", np.array([0, 1, 0]), np.array([0.1, 0.9]))
+
+
+def test_calibration_slope_intercept_empty_input_raises():
+    with pytest.raises(CalibrationRegressionError):
+        calibration_slope_intercept("model_a", "validation", np.array([]), np.array([]))
+
+
+def test_calibration_slope_intercept_single_class_raises():
+    with pytest.raises(CalibrationRegressionError):
+        calibration_slope_intercept("model_a", "validation", np.array([0, 0, 0]), np.array([0.1, 0.2, 0.3]))
+
+
+def test_calibration_slope_intercept_clips_extreme_probabilities_without_erroring():
+    y_true = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+    y_prob = np.array([0.0, 1.0, 0.0, 1.0, 0.3, 0.7, 0.4, 0.6])
+    result = calibration_slope_intercept("model_a", "validation", y_true, y_prob)
+    assert np.isfinite(result.slope)
+    assert np.isfinite(result.intercept)
