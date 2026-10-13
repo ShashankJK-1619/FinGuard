@@ -330,10 +330,13 @@ intermediate command live in the module docs linked below.
 
 ## License / data provenance
 
-Licensing for this project's own code will be specified separately (no
-`LICENSE` file is present in this repository yet). Raw external datasets
-are **not redistributed** here — `data/raw/` is gitignored, and users
-must obtain data directly from the original sources.
+This project's own code and documentation are licensed under the
+[MIT License](LICENSE). That license covers this repository's original
+source code and written content only — it does **not** extend to, and
+does not grant any rights over, the third-party datasets described
+below. Raw external datasets are **not redistributed** here —
+`data/raw/` is gitignored, and users must obtain data directly from the
+original sources.
 
 This project uses only public datasets — the IEEE-CIS Fraud Detection
 dataset under Kaggle's competition terms, and a public LendingClub
