@@ -6,12 +6,12 @@ decision is documented so it can be explained, not just demonstrated.
 
 **Current scope: Module B (Fraud Detection) through Milestone 5, Module A
 (Payments/Product Analytics) through Milestone 2, and Module C (Credit
-Risk) through Milestone 1 (design foundation only — no dataset
-downloaded, no model trained).** Later Module B milestones (production
+Risk) through Milestone 3 (two predeclared logistic-regression PD
+models, Model A and Model B, fit and evaluated on the frozen primary
+chronological split).** Later Module B milestones (production
 threshold/model selection, monitoring) are not started. Module A
-Milestone 3 (split + baseline model) is not started. Module C Milestone
-2 (download LendingClub data, validate schema/target against real
-columns, build the chronological split) is not started.
+Milestone 3 (split + baseline model) is not started. No further Module
+C milestone has been started.
 
 ## Business problem (for Module B)
 
@@ -48,13 +48,25 @@ point-in-time feature-eligibility policy a PD (probability-of-default)
 model would be built on. As of Milestone 2, the real LendingClub
 accepted-loans file (2007-2018Q4) has been downloaded, validated against
 every Milestone 1 design assumption, and used to build two honestly-
-labeled targets and a chronological split — **no model is trained
-yet**. **Note on scope**: the dataset contains only originated
-(accepted) loans, so the PD model this foundation points toward will
-estimate default risk among already-originated loans, not a full
-approve/decline decision across all applicants — see
+labeled targets and a chronological split. **As of Milestone 3, two
+predeclared logistic-regression PD models — Model A
+(application-time-safe baseline) and Model B (Model A plus the
+lender's own `grade`/`sub_grade`/`int_rate`) — have been fit on the
+frozen primary split's train bucket and evaluated on validation and
+benchmark**, with modest, honestly-reported discrimination (ROC-AUC
+0.657-0.676), a leakage-safe calibration comparison, coefficient
+interpretation, a lender-signal ablation, descriptive vintage-stability
+tracking, and non-demographic subgroup diagnostics. **No model has been
+selected for deployment and no approve/decline policy exists.**
+**Note on scope**: the dataset contains only originated (accepted)
+loans, so these models estimate default risk among already-originated
+loans, not a full approve/decline decision across all applicants — see
+[docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+for the full Milestone 3 write-up,
+[docs/credit_risk_model_feature_sets.md](docs/credit_risk_model_feature_sets.md)
+for the Model A / Model B feature-set rationale,
 [docs/moduleC_milestone2_real_data_validation.md](docs/moduleC_milestone2_real_data_validation.md)
-for the full Milestone 2 write-up and
+for the Milestone 2 write-up, and
 [docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md)
 for the Milestone 1 design foundation it validates.
 
@@ -146,7 +158,7 @@ for the full scenario, design rationale, and limitations, and
 [docs/payments_experiment_metric_dictionary.md](docs/payments_experiment_metric_dictionary.md)
 for the per-metric numerator/denominator/direction/tier dictionary.
 
-## Project status (Module C): Milestone 2 complete — real data validated, two targets built, chronological split designed; no model trained
+## Project status (Module C): Milestone 3 complete — Model A / Model B logistic PD baselines fit and evaluated on the frozen primary split
 
 Module C Milestone 1 designed the lending lifecycle and a 5-table data
 model (`borrowers`, `loan_applications`, `loans`, `scheduled_payments`,
@@ -202,10 +214,60 @@ re-validated every Milestone 1 design decision against it:
   its under-resolved tail excluded wholesale —
   `docs/credit_risk_split_design.md`.
 
-**No credit-risk model has been trained.** See
+**Module C Milestone 3 fit and evaluated the first two credit-risk
+models on the frozen primary split** (train 2007-06/2011-12,
+validation 2012, benchmark 2013 — exactly Milestone 2's boundaries,
+unaltered):
+- **Model A** (`model_a_application_time_safe`, 19 raw numeric + 4
+  derived numeric + 7 categorical application-time-safe fields) and
+  **Model B** (Model A plus exactly `grade`/`sub_grade`/`int_rate`,
+  structurally enforced — `docs/credit_risk_model_feature_sets.md`),
+  each a single predeclared, untuned `LogisticRegression(C=1.0,
+  penalty="l2")` fit once on train via a leakage-safe
+  train-only-fit `ColumnTransformer` pipeline (median+indicator
+  imputation, scaling, one-hot with graceful unseen-category
+  handling).
+- **Evaluated at a named, non-0.5, predeclared threshold**
+  (`train_prevalence_matched` = train's own 0.151193 label mean, fixed
+  before touching validation/benchmark): Model A ROC-AUC 0.6731
+  (validation) / 0.6566 (benchmark); Model B ROC-AUC 0.6758 (validation)
+  / 0.6712 (benchmark) — Model B is higher than Model A on both splits,
+  consistent with Section H's positive ablation lift below. PR-AUC and
+  Brier reported alongside, full tables in the Milestone 3 doc §E.
+- **Calibration**: sigmoid vs. isotonic compared leakage-safely
+  (fit on train only, assessed on validation only); for both models the
+  *uncalibrated* base model already has the lowest Brier of the three
+  candidates, so neither calibration method is adopted — reported
+  honestly rather than forcing a calibration step the data didn't
+  support (§F).
+- **Model A coefficients** reported as odds ratios with explicit
+  one-hot reference levels, no causal language (§G).
+- **Section H ablation** quantifies Model B's lift over Model A —
+  ROC-AUC +0.0027 (validation) / +0.0146 (benchmark), PR-AUC +0.0001 /
+  +0.0095 — framed strictly as "signal embedded in the lender's prior
+  underwriting decision," **never a deployment recommendation**
+  (`AblationResult.framing_note`, restated on every result).
+- **Descriptive-only vintage-stability analysis** (§I) across
+  origination years 2007-2016 shows a gradual downward ROC-AUC drift
+  into the non-evaluation-eligible tail — informational only, never
+  used to retrain, re-tune, or report a benchmark number.
+- **Non-demographic subgroup diagnostics** (§J: `home_ownership`,
+  `verification_status`, `application_type`, `purpose` — `addr_state`/
+  `zip_code` excluded as documented geographic protected-class
+  proxies) report missingness, calibration gap, and error rates per
+  group as descriptive monitoring only, not a segment-adjustment
+  recommendation.
+- 10 new `src/credit_risk/` modules, 10 new test files, 137 tests
+  passing with no regressions.
+
+**No model has been selected for deployment, no production threshold
+exists, and no further Module C milestone has been started.** See
+[docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+for the full Milestone 3 write-up (Sections A-M),
+[docs/credit_risk_model_feature_sets.md](docs/credit_risk_model_feature_sets.md)
+for the Model A / Model B feature-set rationale,
 [docs/moduleC_milestone2_real_data_validation.md](docs/moduleC_milestone2_real_data_validation.md)
-for the consolidated Milestone 2 write-up and recommended next
-milestone, and
+for the consolidated Milestone 2 write-up, and
 [docs/moduleC_milestone1_credit_risk_foundation.md](docs/moduleC_milestone1_credit_risk_foundation.md)
 for the Milestone 1 design foundation.
 
@@ -222,7 +284,8 @@ configs/          Configuration (paths.json, cost_assumptions.json,
                   credit_risk_status_mapping.json,
                   credit_risk_target_governance.json,
                   credit_risk_split_design_primary_terminal.json,
-                  credit_risk_split_design_secondary_proxy.json) — no hardcoded
+                  credit_risk_split_design_secondary_proxy.json,
+                  credit_risk_model_feature_sets.json) — no hardcoded
                   paths, cost values, or experiment/credit-risk
                   assumptions in code
 data/raw/         Raw Kaggle CSVs + the gitignored LendingClub
@@ -236,7 +299,9 @@ docs/             Generated reports + written analysis (data profile, join
                   experimentation docs + metric dictionary, Module C
                   credit-risk data model + dataset comparison + target
                   definition + milestone 1 summary + milestone 2 real-
-                  data validation + status-mapping + split-design docs,
+                  data validation + status-mapping + split-design docs +
+                  milestone 3 Model A/B feature-set rationale +
+                  milestone 3 credit baseline write-up (Sections A-M),
                   decision log)
 notebooks/        Exploratory notebooks (none yet)
 src/data/         Config, DuckDB loaders, inspection/validation scripts
@@ -266,7 +331,24 @@ src/credit_risk/  Module C: logical schema constants, target-definition
                   chronological_split.py (train/validation/benchmark
                   split, primary + secondary configs), target_
                   governance.py (primary/secondary target-governance
-                  correction, loud validation) — no model
+                  correction, loud validation), plus Milestone 3's
+                  baseline-modeling modules: feature_selection.py
+                  (Model A/B predeclared field lists, structural
+                  Model-B-circularity-set enforcement),
+                  feature_loader.py (derived features + modeling
+                  table), preprocessing.py (train-only-fit
+                  ColumnTransformer pipeline), modeling.py (predeclared
+                  logistic-regression fit), evaluation.py (classification
+                  metrics at a named threshold), calibration.py
+                  (leakage-safe sigmoid-vs-isotonic comparison),
+                  interpretation.py (odds-ratio coefficient table),
+                  ablation.py (Model A->B lift, non-recommendation
+                  framing), vintage_analysis.py (descriptive-only
+                  stability by origination year), subgroup_
+                  diagnostics.py (non-demographic governance
+                  diagnostics, protected-class-proxy field rejection),
+                  and run_milestone3_baseline.py (end-to-end
+                  orchestration script)
 tests/            pytest suite (incl. tests/features/ and tests/models/
                   leakage-safety tests, tests/payments/ for Module A,
                   and tests/credit_risk/ for Module C, incl. real-data-
@@ -468,7 +550,34 @@ auto-skip with a clear reason if the raw CSV isn't present):
 pytest tests/credit_risk/ -v
 ```
 
-## Known limitations (as of Module B Milestone 5 / Module A Milestone 2 / Module C Milestone 2)
+## Running Module C Milestone 3 (Model A / Model B logistic PD baselines)
+
+Requires the raw LendingClub CSV from Milestone 2 already in place:
+
+```bash
+.venv/bin/python -m src.credit_risk.run_milestone3_baseline
+```
+
+Fits Model A and Model B on the primary split's train bucket, evaluates
+both on validation and benchmark at the `train_prevalence_matched`
+threshold, runs the Section F calibration comparison, the Section G
+coefficient interpretation, the Section H ablation, the Section I
+vintage-stability analysis, and the Section J subgroup diagnostics, and
+writes `data/interim/credit_risk_milestone3_metrics.json` (gitignored,
+not committed). See
+[docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+for the full write-up of every number this script produces, and
+[docs/credit_risk_model_feature_sets.md](docs/credit_risk_model_feature_sets.md)
+for why Model A and Model B's feature lists are shaped the way they
+are.
+
+Run tests:
+
+```bash
+pytest tests/credit_risk/ -v
+```
+
+## Known limitations (as of Module B Milestone 5 / Module A Milestone 2 / Module C Milestone 3)
 
 - Dataset inspection scripts have been run against the actual Kaggle data.
   See `docs/data_profile.md`, `docs/join_validation.md`,
@@ -609,16 +718,57 @@ pytest tests/credit_risk/ -v
   not an open-ended search) — individual segment-level p-values should
   not be read as independently confirmed discoveries.
 - **Module C's `grade`/`sub_grade`/`int_rate` circularity question is
-  still flagged, still not resolved**, now against the real 151-column
-  schema (`configs/credit_risk_feature_eligibility.json` marks all
-  three `"unknown"`, re-confirmed not revisited by the governance
-  correction below). These fields are technically fixed at-or-before
-  loan origination (not a timing leak) but are the lender's own prior
-  risk assessment/pricing; whether to exclude them, include them as an
-  explicit baseline, or something in between is deferred to Module C
-  Milestone 3. See
+  now quantified, not just flagged.** These fields remain `"unknown"`
+  in `configs/credit_risk_feature_eligibility.json` (technically fixed
+  at-or-before origination, but the lender's own prior risk
+  assessment/pricing) — Milestone 3 built Model B as Model A plus
+  exactly these three fields, structurally enforced, and Section H's
+  ablation found including them lifts ROC-AUC by +0.0027 (validation)
+  / +0.0146 (benchmark) and PR-AUC by +0.0001 / +0.0095 over Model A
+  alone. This is reported strictly as "signal embedded in the lender's
+  prior underwriting decision" and **is never a deployment
+  recommendation** — Model B is explicitly not a candidate for
+  deployment; only Model A is. See
+  [docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+  §H and
   [docs/moduleC_milestone2_real_data_validation.md](docs/moduleC_milestone2_real_data_validation.md)
   §F.
+- **Neither Model A nor Model B's predicted probabilities improved
+  under post-hoc calibration on this split.** Milestone 3's Section F
+  compared sigmoid vs. isotonic (fit on train only, assessed on
+  validation only) and found the *uncalibrated* base model already has
+  the lowest Brier score of the three candidates for both models — the
+  predeclared isotonic-eligibility/improvement-margin rules correctly
+  declined to force a calibration step the data didn't support, rather
+  than picking one of the two calibrated variants anyway. See
+  [docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+  §F.
+- **Model A/B's discrimination is modest (ROC-AUC 0.657-0.676,
+  PR-AUC 0.25-0.28) and precision at the predeclared
+  `train_prevalence_matched` threshold is low (~0.22-0.25)** — expected
+  given the threshold is deliberately set near train's own ~15.1% base
+  rate rather than tuned against validation/benchmark, and should not
+  be read as a strong classifier. No production deployment threshold
+  has been chosen for Module C, and neither model is recommended for
+  deployment as-is. See
+  [docs/moduleC_milestone3_credit_baseline.md](docs/moduleC_milestone3_credit_baseline.md)
+  §E.
+- **Module C Milestone 3's descriptive-only vintage-stability analysis
+  (§I) found a gradual downward ROC-AUC drift from early train years
+  into the later, non-evaluation-eligible origination years** —
+  informational only; by construction it is never used to retrain,
+  re-tune a threshold, or report a benchmark number, and the earliest
+  years have very small n so their apparently-high ROC-AUC should not
+  be over-read either.
+- **Module C Milestone 3's subgroup diagnostics (§J) are deliberately
+  restricted to four non-demographic, loan/application-structural
+  fields** (`home_ownership`, `verification_status`,
+  `application_type`, `purpose`) and explicitly reject grouping by
+  `addr_state`/`zip_code` as documented geographic protected-class
+  proxies (enforced at runtime, not just by convention). These tables
+  are descriptive monitoring only, not a segment-adjustment
+  recommendation, and this module makes no claim about true
+  demographic fairness, which it has no data to measure.
 - **`member_id` is excluded (`"no"`), not left unresolved** — a pure
   identifier with no defensible predictive business role, and always
   100% NULL in this public release. Previously flagged `"unknown"`;
@@ -680,8 +830,11 @@ pytest tests/credit_risk/ -v
   underlying data shows a "CC0: Public Domain" tag, but that tag belongs
   to Kaggle's own page and is not treated as inherited by this mirror.
   See `configs/credit_risk_raw_source_metadata.json`.
-- **Module C Milestone 3 (baseline PD model on the frozen split) has not
-  been started.**
+- **No further Module C milestone has been started.** Milestone 3 fit
+  and evaluated Model A and Model B as described above; no model has
+  been selected for deployment, no production threshold exists, and
+  the reject-inference/selection-bias limitation stated above (dataset
+  contains only originated loans) is unchanged by Milestone 3.
 - **Module A Milestone 3 (split + baseline model) has not been started.**
 
 ## License / provenance note

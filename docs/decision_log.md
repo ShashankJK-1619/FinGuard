@@ -869,3 +869,127 @@ chronological split built from it.
   test), and a new `tests/credit_risk/test_target_governance.py`. No
   model was trained; no commit or push was made as part of this
   correction.
+
+## 2026-10-12 — Module C Milestone 3: Model A / Model B logistic PD baselines on the frozen primary split
+
+- **No split boundary changed.** Milestone 3 reuses the primary
+  chronological split exactly as frozen in Milestone 2 (train
+  2007-06/2011-12 — 42,535 rows, 15.119%; validation 2012 — 53,367
+  rows, 16.197%; benchmark 2013 — 134,814 total/134,804 labeled,
+  15.596%; excluded_too_recent 2014+ — 2,029,952 total/572,677
+  labeled). Re-running the split against the real file reproduced
+  these exact counts, confirming no drift before any model was fit.
+- **Model A / Model B feature lists were predeclared in
+  `configs/credit_risk_model_feature_sets.json` and written up in
+  `docs/credit_risk_model_feature_sets.md` before either model was
+  fit**, per this project's "predeclare, never adjust after seeing
+  evaluation-split performance" discipline. Model A: 19 raw numeric +
+  4 derived numeric (`term_months`, `emp_length_years`,
+  `fico_avg_at_application`, `credit_history_months_at_application`) +
+  7 categorical fields, every raw field independently cross-checked
+  against `credit_risk_feature_eligibility.json`'s
+  `is_application_time_safe` property at load time
+  (`feature_selection.py::load_feature_sets`). Model B is defined
+  **structurally**, not as an independently edited list: Model A plus
+  exactly `{grade, sub_grade, int_rate}` — `load_feature_sets` raises
+  `FeatureSelectionError` if Model B's additional-fields config ever
+  drifts from that exact set or overlaps Model A's own list.
+- **Empirically-verified exclusions from the already-eligibility-
+  cleared pool**, each with one stated rationale (not assumed from
+  column names): `funded_amnt`/`funded_amnt_inv` dropped for
+  near-duplication with `loan_amnt` (correlation 0.9998/0.9990,
+  verified on the full real file, not assumed);
+  `fico_range_low`/`fico_range_high` superseded by the single derived
+  `fico_avg_at_application` (correlation 0.99999998, a constant
+  4-5-point gap on every row); 48 vintage-introduced fields (e.g.
+  `open_acc_6m`, `bc_util`) excluded because they are verified
+  100%-missing in the train bucket specifically (direct query against
+  `loans_raw` restricted to 2007-06/2011-12), not merely assumed
+  missing from their names — an all-NaN-in-train column contributes no
+  trainable signal under the train-only-fit imputer and would leak
+  information about what "train" means if imputed from later
+  vintages; joint-application fields (`annual_inc_joint`,
+  `sec_app_*`, etc., ~95% NULL) excluded as a candidate for a future
+  dedicated joint-application sub-model rather than naively imputed
+  into the two baseline models; `zip_code` excluded as high-cardinality
+  geography (`addr_state` retained as the baseline's geographic
+  control) — noted as a separate, stricter decision from
+  `subgroup_diagnostics.py`'s exclusion of `addr_state`/`zip_code` from
+  the Section J governance diagnostic specifically.
+- **Uniform missingness policy, no per-field special-casing**: even
+  though `mths_since_last_delinq` (63% missing in train) and
+  `mths_since_last_record` (91% missing in train) carry *meaningful*
+  missingness (NULL means "never observed," not random),
+  `preprocessing.py` applies `SimpleImputer(strategy="median",
+  add_indicator=True)` uniformly to every numeric feature rather than
+  hand-coding semantics for just these two fields — any column with
+  train-set missingness automatically gets its own
+  `missingindicator_<field>` column.
+- **Logistic regression only, modest untuned regularization, fit once
+  each, train-only**: `LogisticRegression(penalty="l2", C=1.0,
+  solver="lbfgs", max_iter=1000, class_weight=None)` for both models —
+  `C=1.0` used *because* it is scikit-learn's neutral default, not
+  because a grid search against validation/benchmark favored it (that
+  would be threshold/hyperparameter snooping). `class_weight=None`
+  (not `"balanced"`) is deliberate so predicted probabilities stay
+  comparable to train's real ~15.1% prevalence, which Section F's
+  calibration comparison depends on.
+- **Decision threshold named and fixed before touching
+  evaluation splits**: `train_prevalence_matched` = train's own
+  observed label mean (0.151193), chosen specifically to avoid
+  threshold-snooping (picking whatever threshold happens to flatter a
+  split's numbers after seeing them).
+- **Calibration method choice governed by predeclared, not
+  post-hoc, rules** (`calibration.py`): isotonic is only eligible
+  when train has at least `MIN_TRAIN_ROWS_FOR_ISOTONIC` (1,000) rows,
+  and is only preferred over sigmoid if it beats sigmoid's Brier score
+  on validation by at least `ISOTONIC_PREFERENCE_BRIER_IMPROVEMENT`
+  (0.0005) — both margins fixed before the comparison was run. Fit on
+  train only via fresh clones of the base model (never reusing the
+  already-trained `base` estimator), assessed on validation only.
+  Result for both models: the *uncalibrated* base model already had
+  the lowest Brier score of all three candidates, so neither
+  calibrated variant was adopted — reported as-is rather than forcing
+  a calibration step the data didn't support.
+- **Ablation framing is structurally non-droppable**: every
+  `AblationResult` (`ablation.py`) carries a `framing_note` restating
+  that Model B's lift over Model A quantifies "signal embedded in the
+  lender's prior underwriting decision," never a deployment
+  recommendation — `framing_note` is included in `as_dict()` so it
+  cannot be silently dropped from any downstream serialization.
+- **`excluded_too_recent`'s labeled subset is used only for Section
+  I's descriptive vintage-stability analysis**, never for training,
+  threshold selection, or benchmark metrics — `vintage_analysis.py`
+  separately tags each origination year's `evaluation_eligible`
+  status (false only when a year is *purely*
+  `excluded_too_recent`), so this distinction is explicit in the
+  output, not just in prose.
+- **Subgroup governance diagnostics are restricted, at runtime, to
+  four predeclared non-demographic fields**: `NON_PROTECTED_
+  SUBGROUP_FIELDS = ("home_ownership", "verification_status",
+  "application_type", "purpose")` in `subgroup_diagnostics.py`.
+  `compute_subgroup_diagnostics` raises `SubgroupDiagnosticsError` if
+  asked to group by any other column — in particular `addr_state`/
+  `zip_code`, which are excluded here as documented geographic
+  protected-class proxies, a stricter standard applied only to this
+  one diagnostic (both remain legitimate Model A features elsewhere).
+- **10 new `src/credit_risk/` modules** (`feature_selection.py`,
+  `feature_loader.py`, `preprocessing.py`, `modeling.py`,
+  `evaluation.py`, `calibration.py`, `interpretation.py`,
+  `ablation.py`, `vintage_analysis.py`, `subgroup_diagnostics.py`) plus
+  `run_milestone3_baseline.py` (orchestration) and **10 new test
+  files** covering every correctness property enumerated above
+  (feature-set structural enforcement, train-only-fit preprocessing,
+  unseen-category handling, metric correctness, calibration
+  leakage-safety, ablation sign conventions, vintage eligibility
+  tagging, subgroup field allowlist enforcement). Full suite:
+  `pytest tests/credit_risk -q` → 137 passed, no regressions.
+- **New docs**: `docs/credit_risk_model_feature_sets.md` (Section B
+  companion doc, written before any model was fit) and
+  `docs/moduleC_milestone3_credit_baseline.md` (the full Section A-M
+  write-up with every real computed number). `README.md`'s Module C
+  sections and this entry were updated to match.
+- **No model was selected for deployment, no production threshold was
+  set, and no commit or push was made as part of this milestone** —
+  the deliverable stops here for review, per explicit instruction not
+  to start a further Module C milestone without the user's review.
