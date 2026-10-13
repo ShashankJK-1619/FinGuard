@@ -678,8 +678,8 @@ pytest tests/credit_risk/ -v
 - Dataset inspection scripts have been run against the actual Kaggle data.
   See `docs/data_profile.md`, `docs/join_validation.md`,
   `docs/time_structure.md`, and `docs/leakage_checks_empirical.md` for the
-  generated figures, and the Milestone 1 report (shared in the assistant's
-  conversation summary) for the headline numbers.
+  generated figures, and `docs/decision_log.md`'s "Milestone 1 inspection
+  run against real data" entry for the headline numbers.
 - The business meaning of every masked feature group (`C*`, `D*`, `M*`,
   `V*`, `id_*`) is **explicitly unknown** — see
   [docs/data_dictionary.md](docs/data_dictionary.md). No interpretation is
@@ -747,7 +747,7 @@ pytest tests/credit_risk/ -v
   (calibrated ROC-AUC 0.79 vs. 0.75, PR-AUC 0.20 vs. 0.13 on `selection`)
   and, under the same illustrative cost assumptions, its own
   selection-chosen decision policy roughly doubles fraud recall at a
-  15-18% lower illustrative total cost than the logistic model's own
+  14.5-17.3% lower illustrative total cost than the logistic model's own
   policy — at the cost of materially more false positives. No random
   forest, XGBoost, or LightGBM comparison has been run — only
   `HistGradientBoostingClassifier`, per the explicit preference order
@@ -808,7 +808,8 @@ pytest tests/credit_risk/ -v
   distinction the decision rule is designed to enforce, not evidence
   about any real product. See
   [docs/moduleA_milestone2_experimentation.md](docs/moduleA_milestone2_experimentation.md)
-  for full results.
+  for the experiment design and `docs/decision_log.md`'s Module A real-data
+  run entry for the actual headline figures quoted above.
 - **No multiple-comparison correction is applied to Module A Milestone
   2's segment heterogeneity table** (4 pre-registered dimensions only,
   not an open-ended search) — individual segment-level p-values should
@@ -897,7 +898,7 @@ pytest tests/credit_risk/ -v
   directly comparable loan-to-loan the way the 12-month proxy target
   is, so it uses its own dedicated chronological split (train
   2007-2011/validation 2012/benchmark 2013), which is both much earlier
-  and substantially smaller in labeled row count (230,716 rows) than
+  and substantially smaller in labeled row count (230,706 rows) than
   the secondary proxy split (1,765,426 rows) — a direct, foreseeable
   consequence of the longer horizon, not a defect, and something any
   Milestone 3 modeling work must plan around.

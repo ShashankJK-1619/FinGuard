@@ -9,7 +9,7 @@ application-time feature-eligibility policy with an automated leakage
 safety net. **No credit-risk model is trained. No real dataset has been
 downloaded.** Every table, config, and function here is validated only
 against small toy fixtures in `tests/credit_risk/`. This complements,
-and does not touch, Module A (payments/experimentation) or Module B
+and does not touch, Module A (payments/product analytics) or Module B
 (fraud detection).
 
 This document is the consolidated summary; the full reasoning lives in

@@ -390,7 +390,7 @@ split-design test, and the new `test_target_governance.py` file.
   outcome among originated loans, NOT a 12-month probability of
   default. Its dedicated primary split (Section G) is both
   earlier-boundaried and substantially smaller in labeled row count
-  (230,716 vs. 1,765,426 for the secondary split) as a direct,
+  (230,706 vs. 1,765,426 for the secondary split) as a direct,
   foreseeable consequence of this longer horizon — not a defect.
 - **No amortization-schedule generator** and **no model** exist yet —
   unchanged scope boundary from Milestone 1, still explicit Milestone 3+

@@ -24,7 +24,7 @@ Append-only; do not rewrite history, add corrections as new entries.
 - **Kaggle download not automated**: the dataset requires a Kaggle account
   login and competition rules acceptance. Automating this would mean
   handling the user's credentials, which is out of scope for this
-  assistant. The user downloads the four CSVs manually into `data/raw/`.
+  project. The user downloads the four CSVs manually into `data/raw/`.
 - **No modeling, no feature engineering, no committed train/test split** in
   this milestone, per explicit scope constraint. Time-based split reasoning
   is documented (`docs/time_structure.md`) but not implemented.
@@ -1106,3 +1106,34 @@ chronological split built from it.
   of this milestone** — the deliverable stops here for review, per
   explicit instruction not to start a further Module C milestone
   without the user's review.
+
+## 2026-10-13 — Portfolio Production Step 1: repository audit corrections
+
+Per append-only convention, correcting rather than rewriting the two
+entries above rather than editing them in place.
+
+- **Primary split labeled-row total was miscomputed in prose.** The
+  2026-10-12 "governance correction" entry above lists the primary
+  split's per-bucket counts correctly (train 42,535; validation 53,367;
+  benchmark 134,814 total rows / 10 censored / **134,804 labeled**) but
+  then states the labeled-row sum as "230,716 rows" two lines later.
+  230,716 = 42,535 + 53,367 + 134,814 (sum of *total* rows, including
+  the 10 censored benchmark rows); the correct sum of *labeled* rows is
+  **230,706** (42,535 + 53,367 + 134,804), confirmed against
+  `data/interim/credit_risk_milestone3_metrics.json`'s
+  `model_a_application_time_safe.benchmark_metrics.n = 134804`, which is
+  the actual row count used for model evaluation. The historical entry
+  above is left unedited per this file's append-only rule; `README.md`,
+  `docs/credit_risk_split_design.md`, and
+  `docs/moduleC_milestone2_real_data_validation.md` (all of which had
+  copied the 230,716 figure) have been corrected to 230,706.
+- **Sensitivity-analysis variation count corrected in
+  `docs/milestone4_calibration_decisioning.md`.** Two passages said
+  `build_cost_variations` produces "10 labeled variations" / "11
+  sensitivity variations (base + 10 labeled)"; the function actually
+  returns **11** labeled variations (confirmed against
+  `tests/models/test_train_calibrated.py::test_build_cost_variations_preserves_unvaried_fields`'s
+  explicit 11-label set), and `sensitivity_analysis` is called with
+  exactly those 11 variations and no separate base row appended. Both
+  passages corrected to "11 labeled variations" / "11 labeled
+  sensitivity variations" (dropping the inaccurate "base +" framing).

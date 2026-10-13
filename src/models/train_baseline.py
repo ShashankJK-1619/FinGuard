@@ -15,7 +15,6 @@ the prose report is docs/milestone3_baseline_model.md).
 from __future__ import annotations
 
 import json
-import sys
 
 import duckdb
 import numpy as np

@@ -22,3 +22,6 @@ __pycache__/
 # Editors
 .vscode/
 .idea/
+
+# Claude Code local project settings (never part of the published repo)
+.claude/

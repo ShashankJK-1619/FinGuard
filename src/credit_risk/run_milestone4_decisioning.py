@@ -405,6 +405,7 @@ def main() -> int:
         "model_a_vs_model_b_expected_loss_comparison": section_d,
         "decisioning_base_policy_model_a_benchmark": base_policy_result,
         "decisioning_sensitivity_model_a_benchmark": sensitivity_table.to_dict(orient="records"),
+        "decisioning_sensitivity_variation_labels_note": COST_SENSITIVITY_VARIATION_LABELS_NOTE,
     }
     METRICS_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(METRICS_OUT_PATH, "w") as f:

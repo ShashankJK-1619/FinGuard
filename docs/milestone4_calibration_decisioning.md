@@ -465,7 +465,7 @@ around); `select_best_calibration_method` reads only the requested
 split's metric and demonstrably prefers sigmoid when tied and switches to
 isotonic only on a clear (>3%) improvement; `time_feature_ablation`
 returns the expected structure; `build_cost_variations` produces the
-expected 10 labeled variations (including the three new review-realism
+expected 11 labeled variations (including the three new review-realism
 ones) preserving unvaried cost fields; and, against real data, a full run
 confirms sigmoid preserves `selection` ROC-AUC exactly, isotonic preserves
 it within a small tolerance, both calibrated methods beat uncalibrated
@@ -480,9 +480,9 @@ original Milestone 4 run's 86 passed).
 
 Unchanged in character from the original run — fitting the baseline
 pipeline, two ablation-variant pipelines, two calibrators, computing
-reliability tables, and evaluating a 43-pair threshold grid × 11
-sensitivity variations (base + 10 labeled) all complete in well under a
-minute on the same machine used for Milestones 1–3. No new dependencies.
+reliability tables, and evaluating a 43-pair threshold grid × 11 labeled
+sensitivity variations all complete in well under a minute on the same
+machine used for Milestones 1–3. No new dependencies.
 
 ## 12. Recommended next milestone
 

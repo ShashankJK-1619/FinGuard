@@ -106,7 +106,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 from src.data.config import load_paths
-from src.models.calibration import apply_calibrator, fit_calibrator, reliability_table
+from src.models.calibration import apply_calibrator, fit_calibrator
 from src.models.cost_model import (
     COST_ASSUMPTIONS_DISCLAIMER,
     CostAssumptions,

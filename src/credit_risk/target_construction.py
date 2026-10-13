@@ -72,7 +72,7 @@ import duckdb
 import pandas as pd
 
 from src.credit_risk.config import TargetDefinitionAssumptions, load_target_definition_assumptions
-from src.credit_risk.raw_loader import LOANS_RAW_VIEW, MONTH_YEAR_STRPTIME_FORMAT
+from src.credit_risk.raw_loader import LOANS_RAW_VIEW
 from src.credit_risk.schema import (
     DATA_AS_OF_DATE_COL,
     DEFAULT_12M_PROXY_LABEL_COL,

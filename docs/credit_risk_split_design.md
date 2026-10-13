@@ -130,7 +130,7 @@ empirically above (0 rows in each bucket's labeled subset are
 censored).
 
 **Sample-size tradeoff, stated plainly**: this primary split is much
-smaller (train+validation+benchmark = 230,716 rows) than the secondary
+smaller (train+validation+benchmark = 230,706 rows) than the secondary
 split's (1,765,426 rows), because the terminal target demands each
 loan reach its own, often multi-year, maturity before it is labeled at
 all. This is a direct, expected consequence of correctly designating a
