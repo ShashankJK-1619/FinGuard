@@ -19,6 +19,10 @@ assignment/outcomes) is layered on top of the real IEEE-CIS transactions
 only where the public dataset has no native concept of a checkout session
 or experiment — never presented as real.
 
+<p align="center">
+  <img src="docs/figures/finguard_summary.png" width="820" alt="FinGuard at a glance: six summary stats covering fraud transaction scale, payments experiment uplift, fraud model PR-AUC lift, and credit calibration drift across all three modules">
+</p>
+
 ## Key results
 
 All numbers below are generated, reproducible figures — traced to the
@@ -63,6 +67,92 @@ significance strictly out-of-sample, and only then turns that into a
 business decision (approve/review/decline, a cost-based threshold, a
 ship/no-ship call) — with governance diagnostics (drift, selection bias,
 calibration decay) checked explicitly, not skipped.
+
+<p align="center">
+  <img src="docs/figures/finguard_architecture.png" width="640" alt="FinGuard architecture diagram showing the shared pipeline from data validation through the feature/KPI layer to per-module modeling, experimentation, and decisioning and governance">
+</p>
+<p align="center"><em>The same data → validation → feature/KPI → modeling/experimentation → decisioning pipeline, applied independently in each module.</em></p>
+
+## Module A — Payments / Product Analytics
+
+**The problem:** does a proposed change to the checkout flow improve
+completion enough to be worth shipping? A synthetic session, retry, and
+A/B-assignment layer — built on top of real IEEE-CIS transaction rows — is
+used to run that experiment the way a payments analytics team would: with
+a predeclared practical-significance threshold decided *before* looking at
+results, not after.
+
+**What the analysis showed:**
+
+<p align="center">
+  <img src="docs/figures/payments_experiment_result.png" width="700" alt="Payments A/B experiment chart showing a statistically significant completion-rate uplift that falls below the predeclared practical-significance threshold, resulting in a NO-SHIP decision">
+</p>
+<p align="center"><em>Statistically significant, but below the predeclared practical-significance threshold.</em></p>
+
+**The decision:** the treatment's completion-rate uplift was **+0.71
+percentage points**, **statistically significant** (p≈2.2e-18) — and still
+**NO-SHIP**, because the predeclared practical-significance threshold was
+**+1.0 pp** and the observed effect didn't clear it. This is a synthetic,
+simulated experiment layered on real transaction data, not a live
+production test; the lesson it illustrates — that statistical significance
+alone doesn't justify shipping — is the point of the exercise.
+
+## Module B — Fraud / Risk Modeling
+
+**The problem:** separate fraudulent from legitimate transactions under
+severe class imbalance (~3.5% fraud prevalence), evaluated strictly
+out-of-time on a chronological benchmark split so performance isn't
+overstated by a random train/test split.
+
+**What the analysis showed:**
+
+<p align="center">
+  <img src="docs/figures/fraud_model_comparison.png" width="700" alt="Fraud model comparison chart showing higher PR-AUC and ROC-AUC for the preferred nonlinear model than the logistic baseline on the chronological temporal benchmark">
+</p>
+<p align="center"><em>The nonlinear model improves PR-AUC — the more important metric here given low fraud prevalence — and ROC-AUC over the logistic baseline.</em></p>
+
+<p align="center">
+  <img src="docs/figures/fraud_decisioning_tradeoff.png" width="700" alt="Fraud decisioning tradeoff chart showing the nonlinear model's illustrative decision policy achieving roughly double the fraud recall at lower illustrative cost than the logistic baseline's own policy">
+</p>
+<p align="center"><em>Under illustrative cost assumptions (not real company economics), the nonlinear model's decision policy roughly doubles fraud recall at lower illustrative total cost.</em></p>
+
+**The decision:** the preferred nonlinear model (`HistGradientBoostingClassifier`)
+is favored on both ranking quality (PR-AUC 0.120→0.154, +28% relative) and
+illustrative operational economics. Cost figures throughout are
+illustrative, config-driven assumptions — not a claim of real company
+savings.
+
+## Module C — Credit Risk / Expected Loss
+
+**The problem:** among originated LendingClub loans, how risky is a loan
+at approval time, and — just as importantly — can the model's predicted
+probabilities themselves be trusted as *probabilities*, not just a
+ranking, when applied out-of-time?
+
+**What the analysis showed:**
+
+<p align="center">
+  <img src="docs/figures/credit_risk_bands.png" width="700" alt="Credit risk bands chart comparing mean predicted probability to observed adverse-outcome rate across low, medium, and high risk bands on the temporal benchmark">
+</p>
+<p align="center"><em>Mean predicted probability tracks the observed adverse-outcome rate reasonably well across risk bands on the temporal benchmark.</em></p>
+
+<p align="center">
+  <img src="docs/figures/credit_calibration_drift.png" width="700" alt="Credit calibration drift chart showing the Cox calibration slope for Model A and Model B dropping from validation to temporal benchmark, both falling well below the ideal slope of 1.0">
+</p>
+<p align="center"><em>Probability calibration degrades out-of-time despite stable score-distribution diagnostics.</em></p>
+
+**The decision / lesson:** calibration slope falls from 0.95→0.42 (Model A)
+and 0.85→0.50 (Model B), validation→benchmark, even though each model's
+score-distribution PSI stayed low and stable over the same period.
+**Stable score distributions do not guarantee stable probability
+calibration** — the central governance lesson of this module, and the
+reason calibration, not just discrimination, is checked explicitly before
+any decisioning step. The dataset contains **originated loans only**
+(a selection-bias limitation), the primary target is a variable-horizon
+**terminal adverse outcome — not a 12-month PD**, and the expected-loss
+figures are **illustrative** (config-driven LGD/EAD/cost assumptions, not
+real LendingClub underwriting or pricing). See
+[Limitations](#limitations) for the full caveat list.
 
 ## Technical stack
 
