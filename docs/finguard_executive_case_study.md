@@ -1,4 +1,4 @@
-# FinGuard — Payments, Fraud & Credit Risk Decisioning Platform
+# FinGuard — Payments, Fraud & Credit Risk Decisioning
 
 FinGuard is an end-to-end FinTech data science case study spanning three
 decisions a consumer lending/payments business has to make continuously:
@@ -47,7 +47,7 @@ gradient-boosted nonlinear model, out-of-sample probability calibration,
 and an illustrative cost-based decisioning layer.
 
 **Module C — Credit Risk / Expected Loss.** A censoring-aware target and
-split design, interpretable logistic PD models, an ablation testing
+split design, interpretable logistic credit-risk models, an ablation testing
 whether lender-assigned signals (grade, sub-grade, interest rate) add
 real discrimination, calibration and score-stability diagnostics, and an
 illustrative LGD × EAD expected-loss calculation.
@@ -100,7 +100,7 @@ determine whether a result holds up out of sample:
   completion-rate uplift (p ≈ 2.2e-18) — and still returned a **NO-SHIP**
   decision, because it fell short of the predeclared +1.0 pp
   practical-significance threshold.
-- **Credit risk discrimination:** two logistic PD models evaluated
+- **Credit risk discrimination:** two logistic credit-risk models evaluated
   out-of-time reach ROC-AUC 0.657–0.676 — modest, honestly reported, and
   not oversold as a strong classifier. Adding lender-assigned signals
   (grade/sub-grade/interest rate) lifts discrimination only modestly

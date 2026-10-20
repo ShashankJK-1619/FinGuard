@@ -1,6 +1,6 @@
 # FinGuard
 
-### Payments, Fraud & Credit Risk Decisioning Platform
+### Payments, Fraud & Credit Risk Decisioning
 
 FinGuard is an end-to-end FinTech data science project covering the three
 problems a consumer lending/payments business has to solve: understanding
@@ -19,8 +19,11 @@ assignment/outcomes) is layered on top of the real IEEE-CIS transactions
 only where the public dataset has no native concept of a checkout session
 or experiment — never presented as real.
 
+**Start here:** [Executive case study](docs/finguard_executive_case_study.md)
+— the business problem, decisions, and results in a 5-minute read.
+
 <p align="center">
-  <img src="docs/figures/finguard_summary.png" width="820" alt="FinGuard at a glance: six summary stats covering fraud transaction scale, payments experiment uplift, fraud model PR-AUC lift, and credit calibration drift across all three modules">
+  <img src="docs/figures/finguard_summary.png" width="820" alt="FinGuard at a glance: six summary stats covering transaction scale, payments experiment uplift, fraud model PR-AUC lift, and credit calibration drift across all three modules">
 </p>
 
 ## Key results
@@ -35,7 +38,7 @@ not hand-picked for effect.
 | Fraud model comparison | Nonlinear model (`HistGradientBoostingClassifier`) lifts temporal-benchmark PR-AUC from 0.120 (logistic baseline) to 0.154 (+28% relative) and ROC-AUC from 0.732 to 0.780 |
 | Fraud decisioning | Under identical illustrative cost assumptions, the preferred nonlinear configuration's decision policy roughly doubles fraud recall at a 14.5-17.3% lower illustrative total cost than the logistic baseline's own policy |
 | Payments experiment | A synthetic A/B test on real transaction data found a statistically significant +0.71 pp completion-rate uplift (0.8692→0.8763, p≈2.2e-18) that still returned a **NO-SHIP** decision — it missed the predeclared +1.0 pp practical-significance threshold |
-| Credit risk discrimination | Two logistic PD baselines on real LendingClub data, evaluated out-of-time: ROC-AUC 0.657-0.676 — modest, honestly reported, not a strong classifier |
+| Credit risk discrimination | Two logistic credit-risk baselines on real LendingClub data (target: eventual adverse terminal outcome among originated loans), evaluated out-of-time: ROC-AUC 0.657-0.676 — modest, honestly reported, not a strong classifier |
 | Credit risk calibration | Out-of-time calibration slope drops from 0.95→0.42 (Model A) and 0.85→0.50 (Model B), validation→benchmark — a real finding, surfaced rather than smoothed over |
 | Test coverage | Full repository suite: **371 passed, 1 skipped, 0 failed** |
 
@@ -43,13 +46,19 @@ No model in any module has been selected for production deployment —
 every result above is a comparison, calibration check, or illustrative
 decisioning exercise, not a shipped system.
 
+**Why these metrics are conservative:** FinGuard prioritizes
+point-in-time-safe features, transparent feature governance, and
+out-of-time evaluation rather than leaderboard optimization. This makes
+the reported metrics more conservative but better aligned with
+deployment-style model validation.
+
 ## Modules
 
 | Module | Focus | Key techniques | Status |
 |---|---|---|---|
 | **A — Payments / Product Analytics** | SQL KPI layer, funnel analysis, retry/recovery, A/B experimentation, guardrails | DuckDB SQL, two-proportion z-test, power/MDE, ship/no-ship decision rule | Complete |
 | **B — Fraud / Risk Modeling** | Point-in-time features, chronological validation, logistic baseline, gradient boosting, calibration, operational decisioning | scikit-learn, out-of-sample sigmoid/isotonic calibration, illustrative cost-based decisioning | Complete |
-| **C — Credit Risk / Expected Loss** | Target/censoring design, leakage governance, lender-signal ablation, calibration & stability diagnostics, illustrative expected loss | LendingClub chronological split, logistic PD models, LGD × EAD expected loss | Complete |
+| **C — Credit Risk / Expected Loss** | Target/censoring design, leakage governance, lender-signal ablation, calibration & stability diagnostics, illustrative expected loss | LendingClub chronological split, logistic credit-risk models, LGD × EAD expected loss | Complete |
 
 ## Architecture
 
@@ -92,10 +101,9 @@ results, not after.
 **The decision:** the treatment's completion-rate uplift was **+0.71
 percentage points**, **statistically significant** (p≈2.2e-18) — and still
 **NO-SHIP**, because the predeclared practical-significance threshold was
-**+1.0 pp** and the observed effect didn't clear it. This is a synthetic,
-simulated experiment layered on real transaction data, not a live
-production test; the lesson it illustrates — that statistical significance
-alone doesn't justify shipping — is the point of the exercise.
+**+1.0 pp** and the observed effect didn't clear it. The lesson —
+statistical significance alone doesn't justify shipping — is the point of
+this synthetic experiment.
 
 ## Module B — Fraud / Risk Modeling
 
@@ -114,13 +122,12 @@ overstated by a random train/test split.
 <p align="center">
   <img src="docs/figures/fraud_decisioning_tradeoff.png" width="700" alt="Fraud decisioning tradeoff chart showing the nonlinear model's illustrative decision policy achieving roughly double the fraud recall at lower illustrative cost than the logistic baseline's own policy">
 </p>
-<p align="center"><em>Under illustrative cost assumptions (not real company economics), the nonlinear model's decision policy roughly doubles fraud recall at lower illustrative total cost.</em></p>
+<p align="center"><em>Under illustrative cost assumptions, the nonlinear model's decision policy roughly doubles fraud recall at lower total cost.</em></p>
 
 **The decision:** the preferred nonlinear model (`HistGradientBoostingClassifier`)
 is favored on both ranking quality (PR-AUC 0.120→0.154, +28% relative) and
-illustrative operational economics. Cost figures throughout are
-illustrative, config-driven assumptions — not a claim of real company
-savings.
+operational cost. Cost figures are config-driven assumptions, not real
+company economics.
 
 ## Module C — Credit Risk / Expected Loss
 
@@ -147,12 +154,10 @@ score-distribution PSI stayed low and stable over the same period.
 **Stable score distributions do not guarantee stable probability
 calibration** — the central governance lesson of this module, and the
 reason calibration, not just discrimination, is checked explicitly before
-any decisioning step. The dataset contains **originated loans only**
-(a selection-bias limitation), the primary target is a variable-horizon
-**terminal adverse outcome — not a 12-month PD**, and the expected-loss
-figures are **illustrative** (config-driven LGD/EAD/cost assumptions, not
-real LendingClub underwriting or pricing). See
-[Limitations](#limitations) for the full caveat list.
+any decisioning step. Scope caveats — originated loans only, a
+variable-horizon terminal adverse-outcome target (not a 12-month PD), and
+illustrative expected-loss assumptions — are detailed in
+[Limitations](#limitations).
 
 ## Technical stack
 
@@ -238,7 +243,7 @@ src/models/       Chronological split, preprocessing, logistic + nonlinear
                   models, calibration, cost-based decisioning (Module B)
 src/payments/     Synthetic session/funnel + experimentation layer,
                   DuckDB-SQL-first, no fitted models (Module A)
-src/credit_risk/  Schema, target/censoring, chronological split, PD
+src/credit_risk/  Schema, target/censoring, chronological split, credit-risk
                   models, calibration, expected loss, decisioning
                   (Module C)
 tests/            pytest suite (mirrors src/ layout; real-data-gated
@@ -302,8 +307,8 @@ intermediate command live in the module docs linked below.
   [docs/payments_data_model.md](docs/payments_data_model.md) and
   [docs/moduleA_milestone2_experimentation.md](docs/moduleA_milestone2_experimentation.md).
 - **Module C's dataset contains only originated (accepted) loans** — a
-  selection-bias/target-population limitation. Any PD model here
-  estimates default risk among already-approved loans, not across the
+  selection-bias/target-population limitation. Any model here
+  estimates risk of eventual adverse terminal outcome among originated loans, not across the
   full applicant population, and must not be presented as a complete
   approve/decline underwriting model. See
   [docs/credit_risk_dataset_comparison.md](docs/credit_risk_dataset_comparison.md)

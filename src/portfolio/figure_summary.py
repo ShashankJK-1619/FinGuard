@@ -50,7 +50,7 @@ def build() -> None:
     stats = [
         (
             f"{FRAUD_N_TRANSACTIONS.value:,}",
-            f"fraud transactions evaluated\n(~{FRAUD_PREVALENCE_PCT.value:.1f}% fraud prevalence)",
+            f"labeled transactions evaluated\n(~{FRAUD_PREVALENCE_PCT.value:.1f}% fraud prevalence)",
             VIOLET,
         ),
         (
